@@ -18,6 +18,18 @@ void NetworkManager::beginSTA(const char* ssid, const char* pass) {
     WiFi.begin(ssid, pass);
 }
 
+// 将失败状态映射为可读原因码写入配置，供 AP 模式配网页显示。
+// 码表：no_ap=扫描不到该SSID；auth_fail=密码错误/被路由器拒绝；timeout=超时未完成。
+// 附带 SDK station 状态码便于深入诊断（0 idle/1 connecting/2 wrong password/3 no AP/4 connect fail/5 got IP）。
+static void recordStaError() {
+    uint8_t sdk = wifi_station_get_connect_status();
+    const char* code = "timeout";
+    if (sdk == 3 || WiFi.status() == WL_NO_SSID_AVAIL)         code = "no_ap";
+    else if (sdk == 2 || WiFi.status() == WL_CONNECT_FAILED)   code = "auth_fail";
+    snprintf(configStore.cfg.last_sta_error, sizeof(configStore.cfg.last_sta_error),
+             "%s:st%d", code, (int)sdk);
+}
+
 bool NetworkManager::connectSTABlocking(const char* ssid, const char* pass, uint32_t timeoutMs) {
     Serial.printf("[NET] STA connecting to %s\n", ssid);
     WiFi.mode(WIFI_STA);
@@ -31,11 +43,13 @@ bool NetworkManager::connectSTABlocking(const char* ssid, const char* pass, uint
     }
 
     if (WiFi.status() == WL_CONNECTED) {
+        configStore.cfg.last_sta_error[0] = '\0';
         Serial.printf("\n[NET] STA connected, IP=%s RSSI=%d\n",
                       WiFi.localIP().toString().c_str(), WiFi.RSSI());
         return true;
     }
-    Serial.println(F("\n[NET] STA connect failed"));
+    recordStaError();
+    Serial.printf("\n[NET] STA connect failed: %s\n", configStore.cfg.last_sta_error);
     return false;
 }
 

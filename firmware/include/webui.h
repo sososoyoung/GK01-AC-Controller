@@ -336,6 +336,7 @@ body{background:var(--bg);color:var(--text)}
 <div id="wifi-status" style="font-size:14px;color:var(--text3);margin-bottom:10px"></div>
 <button class="b b-bl b-fw" style="margin-bottom:10px" onclick="scanWifi()">&#128269; 扫描WiFi</button>
 <div id="wifi-list" style="display:none">
+<div style="font-size:12px;color:var(--gray3);margin-bottom:6px">扫描列表仅含 2.4G 网络（设备不支持 5G）</div>
 <div style="max-height:200px;overflow-y:auto;border:.5px solid var(--gray4);border-radius:10px;margin-bottom:10px" id="wifi-scan-results"></div>
 <input type="text" id="wifi-ssid" placeholder="WiFi 名称（SSID）" style="margin-bottom:8px">
 <input type="text" id="wifi-pass" placeholder="WiFi 密码" style="margin-bottom:10px">
@@ -410,6 +411,9 @@ body{background:var(--bg);color:var(--text)}
 <input type="file" name="firmware" id="ota-file" accept=".bin" style="font-size:14px;width:100%" required>
 <div class="ota-meta" id="ota-file-meta">未选择文件。选中文件后会先在浏览器里验头。</div>
 </div>
+<label for="ota-password">设备热点密码</label>
+<input type="password" id="ota-password" autocomplete="current-password" placeholder="未修改时为 12345678" required style="margin:8px 0">
+<div class="ota-meta">用于升级认证，用户名固定为 admin。请填写本设备的热点密码，上传前会先验证。</div>
 <button type="submit" class="b b-or b-fw" id="ota-btn" disabled>选择 OTA 固件</button>
 </form>
 <div class="prog" id="ota-prog"><div class="prog-bar" id="ota-prog-bar"></div></div>
@@ -548,16 +552,6 @@ function otaValidateFile(file,done){
 (function(){
   var f=$('ota-form'),inp=$('ota-file');if(!f||!inp)return;
   inp.onchange=function(){otaValidateFile(inp.files&&inp.files[0])};
-  f.onsubmit=function(e){
-    var file=inp.files&&inp.files[0];
-    if(!otaFileOk){
-      e.preventDefault();
-      otaValidateFile(file,function(ok){if(ok){var b=$('ota-btn');if(b)b.textContent='上传中...';otaMsg('固件上传中，请勿断电。完成后设备自动重启。','ota-wait');f.submit()}});
-      return false;
-    }
-    var b=$('ota-btn');if(b)b.textContent='上传中...';
-    otaMsg('固件上传中，请勿断电。完成后设备自动重启。','ota-wait');
-  };
 })();
 function $(i){return document.getElementById(i)}
 function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},1500)}
@@ -749,14 +743,30 @@ localStorage.removeItem('ir_sigs');localStorage.removeItem('ir_ac_v');
 sigs=[];renderRemote();toast('已清除');
 }
 renderRemote();
+var STA_ERR={
+  no_ap:'未找到该WiFi（请确认名称是路由器 2.4G 的 SSID，本设备不支持 5G）',
+  auth_fail:'密码错误或被路由器拒绝（建议路由器加密方式设为 WPA2-PSK）',
+  timeout:'连接超时（信号弱或路由器响应慢，可靠近路由器重试）',
+  'save_failed':'配置写入或提交失败，请检查串口中的 [CFG]/[FS] 日志'
+};
+function staErrText(e){
+  if(!e)return '';
+  var code=e.split(':')[0];
+  return STA_ERR[code]||e;
+}
 function loadWifiStatus(){
   fetch('/api/wifi/status').then(function(r){return r.json()}).then(function(d){
     var s=$('wifi-status');
     var modeTxt=d.mode==='sta'?'STA 模式':d.mode==='slave'?'从机模式':'AP 模式';
-    s.innerHTML='<b>'+modeTxt+'</b> &nbsp; SSID: '+esc(d.ssid)+' &nbsp; IP: '+esc(d.ip)+(d.rssi?' &nbsp; RSSI: '+esc(d.rssi):'');
+    var h='<b>'+modeTxt+'</b> &nbsp; SSID: '+esc(d.ssid)+' &nbsp; IP: '+esc(d.ip)+(d.rssi?' &nbsp; RSSI: '+esc(d.rssi):'');
+    if(d.flash_real_kb){h+='<br><span style="color:var(--gray);font-size:12px">Flash: 真实 '+esc(d.flash_real_kb/1024)+'MB / 配置 '+esc(d.flash_size_kb/1024)+'MB</span>'}
+    if(d.fs==='fail'){h+='<br><span style="color:var(--red)">文件系统异常：配置无法保存'+(d.flash_real_kb<4096?'（芯片仅 '+esc(d.flash_real_kb/1024)+'MB，固件按 4MB 布局）':'')+'</span>'}
+    else if(d.mode==='ap'&&d.sta_ssid){h+='<br><span style="color:var(--gray)">已保存网络: '+esc(d.sta_ssid)+'</span>'}
+    if(d.mode!=='sta'&&d.sta_error){h+='<br><span style="color:var(--red)">上次连接失败: '+esc(staErrText(d.sta_error))+'</span>'}
+    s.innerHTML=h;
     if(d.mode==='sta'){$('wifi-forget-wrap').style.display='block'}
-    if(d.mqtt){s.innerHTML+='<br><span style="color:var(--green)">MQTT: 已连接 ('+esc(d.mqtt_host)+')</span>'}
-    else if(d.mqtt_host){s.innerHTML+='<br><span style="color:var(--gray)">MQTT: 未连接</span>'}
+    if(d.mqtt){h+='<br><span style="color:var(--green)">MQTT: 已连接 ('+esc(d.mqtt_host)+')</span>';s.innerHTML=h}
+    else if(d.mqtt_host){h+='<br><span style="color:var(--gray)">MQTT: 未连接</span>';s.innerHTML=h}
   }).catch(function(){});
 }
 loadWifiStatus();
@@ -780,10 +790,13 @@ function scanWifi(){
 function pickWifi(ssid){$('wifi-ssid').value=ssid;$('wifi-pass').focus()}
 function connectWifi(){
   var ssid=$('wifi-ssid').value.trim();if(!ssid){toast('请输入WiFi名称');return}
-  toast('正在连接...');
+  toast('正在保存...');
   fetch('/api/wifi/connect',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
     body:'ssid='+encodeURIComponent(ssid)+'&pass='+encodeURIComponent($('wifi-pass').value)})
-  .then(function(r){return r.json()}).then(function(d){toast(d.ok?'重启中，请等待30秒...':'失败: '+d.error)});
+  .then(function(r){return r.json()}).then(function(d){
+    if(!d.ok){toast('保存失败: '+staErrText(d.error));return}
+    toast('已保存，重启连接中（约1分钟）。若失败会回到此热点并显示原因');
+  });
 }
 function forgetWifi(){
   if(!confirm('确定忘记网络？设备将重启为AP模式'))return;
@@ -1033,23 +1046,29 @@ function disconnectDev(){
     e.preventDefault();
     var fi=document.getElementById('ota-file');
     if(!fi||!fi.files[0])return;
+    if(!otaSupported||!otaFileOk){otaValidateFile(fi.files[0]);return}
+    var password=document.getElementById('ota-password');
+    if(!password.value){password.focus();return}
+    var authorization='Basic '+btoa(unescape(encodeURIComponent('admin:'+password.value)));
     var file=fi.files[0];
     var prog=document.getElementById('ota-prog'),bar=document.getElementById('ota-prog-bar');
     var stat=document.getElementById('ota-prog-stat'),btn=document.getElementById('ota-btn');
-    btn.disabled=true;btn.textContent='\u4e0a\u4f20\u4e2d...';
-    prog.style.display='block';bar.style.width='0';bar.className='prog-bar';stat.textContent='\u4e0a\u4f20\u4e2d 0%';
+    btn.disabled=true;btn.textContent='验证密码中...';
+    prog.style.display='block';bar.style.width='0';bar.className='prog-bar';stat.textContent='正在验证设备热点密码...';
     var xhr=new XMLHttpRequest();
+    xhr.timeout=120000;
     xhr.upload.onprogress=function(ev){if(ev.lengthComputable){
       var pct=Math.round(ev.loaded/ev.total*100);
       bar.style.width=pct+'%';stat.textContent='\u4e0a\u4f20\u4e2d '+pct+'%';
     }};
+    xhr.upload.onload=function(){stat.textContent='上传已发送，设备正在校验，请稍候...'};
     xhr.onload=function(){
       if(xhr.status===200){
         stat.textContent='\u4e0a\u4f20\u5b8c\u6210\uff0c\u8bbe\u5907\u91cd\u542f\u4e2d...';
         bar.style.width='100%';setTimeout(function(){location.reload()},10000);
       }else{
         bar.className='prog-bar err';
-        stat.textContent='\u5931\u8d25: '+(xhr.responseText||'\u672a\u77e5\u9519\u8bef').substring(0,80);
+        stat.textContent=xhr.status===401?'认证失败，请检查设备热点密码后重试':'失败: '+(xhr.responseText||'未知错误').substring(0,80);
         btn.disabled=false;btn.textContent='\u9009\u62e9 OTA \u56fa\u4ef6';
       }
     };
@@ -1057,8 +1076,33 @@ function disconnectDev(){
       bar.className='prog-bar err';stat.textContent='\u7f51\u7edc\u9519\u8bef';
       btn.disabled=false;btn.textContent='\u9009\u62e9 OTA \u56fa\u4ef6';
     };
+    xhr.ontimeout=function(){
+      bar.className='prog-bar err';stat.textContent='上传或校验超时，请检查设备串口日志和 WiFi 连接';
+      btn.disabled=false;btn.textContent='选择 OTA 固件';
+    };
     var fd=new FormData();fd.append('firmware',file);
-    xhr.open('POST','/update');xhr.send(fd);
+    var auth=new XMLHttpRequest();
+    function authFailed(message){
+      bar.className='prog-bar err';stat.textContent=message;
+      btn.disabled=false;btn.textContent='验证并上传固件';
+    }
+    auth.timeout=10000;
+    auth.onload=function(){
+      if(auth.status!==200){
+        authFailed(auth.status===403||auth.status===401?'认证失败，请输入设备当前的热点密码（不是家庭 WiFi 密码）':'无法验证身份，请刷新页面后重试');
+        return;
+      }
+      password.value='';
+      btn.textContent='上传中...';stat.textContent='上传中 0%';
+      xhr.open('POST','/update');
+      xhr.setRequestHeader('Authorization',authorization);
+      xhr.send(fd);
+    };
+    auth.onerror=function(){authFailed('认证请求失败，请检查设备连接')};
+    auth.ontimeout=function(){authFailed('认证请求超时，请检查设备连接')};
+    auth.open('GET','/api/ota/auth');
+    auth.setRequestHeader('Authorization',authorization);
+    auth.send();
   });
 })();
 </script>

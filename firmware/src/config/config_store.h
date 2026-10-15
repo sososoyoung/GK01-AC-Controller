@@ -29,6 +29,7 @@ struct Config {
     char     device_name[33] = "";
     char     device_icon[12] = "ac";
     char     device_floor[33] = "";
+    char     last_sta_error[32] = "";   // 上次 STA 连接失败原因码（no_ap/auth_fail/timeout:stN）
 };
 
 bool ensureFSMounted(bool formatIfNeeded);

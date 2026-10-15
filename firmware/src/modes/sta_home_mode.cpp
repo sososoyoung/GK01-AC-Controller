@@ -35,6 +35,11 @@ void StaHomeMode::onEnter() {
 
 void StaHomeMode::loop() {
     web.loop();
+    // OTA 上传期间只服务 web：DS18B20 阻塞读/MQTT 会掐断 TCP 吞吐
+    if (ota.isUploading()) {
+        yield();
+        return;
+    }
     sensors.loop();
     mqtt.loop();
     network.maintain();

@@ -293,6 +293,10 @@ void OtaManager::reject(const char* reason) {
     Serial.printf("[OTA] Reject: %s\n", rejectReason_);
 }
 
+bool OtaManager::isUploading() const {
+    return uploadActive_ && (uint32_t)(millis() - lastChunkMs_) < 3000;
+}
+
 bool OtaManager::verifyInFlash(uint32_t baseAddr, uint32_t imageSize,
                                 uint8_t targetRom, ManifestInfo& info,
                                 char* reason, size_t reasonLen) {
@@ -302,14 +306,18 @@ bool OtaManager::verifyInFlash(uint32_t baseAddr, uint32_t imageSize,
 
 void OtaManager::onUploadStart() {
     uploadSize_    = 0;
+    targetAddr_    = 0;
     accLen_        = 0;
     writeOk_       = true;
     headerChecked_ = false;
     rejectReason_[0] = '\0';
+    uploadActive_  = true;
+    lastChunkMs_   = millis();
 #if IRAC_RBOOT_OTA
     uint8_t target = rboot_get_target_rom();
     targetAddr_    = rboot_get_rom_address(target);
-    if (targetAddr_ == 0) {
+    if (targetAddr_ != (target == 0 ? ROM0_ADDRESS : ROM1_ADDRESS) ||
+        target == rboot_get_current_rom()) {
         reject("invalid OTA target partition");
         return;
     }
@@ -320,29 +328,43 @@ void OtaManager::onUploadStart() {
 }
 
 bool OtaManager::onUploadChunk(const uint8_t* data, size_t len) {
+    if (!uploadActive_) {
+        reject("upload not started or already ended");
+        return false;
+    }
+    lastChunkMs_ = millis();
     if (!writeOk_) return false;
 #if IRAC_RBOOT_OTA
-    if (uploadSize_ + accLen_ + len > OTA_SLOT_MAX_SIZE) {
+    if (len > OTA_SLOT_MAX_SIZE - uploadSize_ - accLen_) {
         reject("firmware image is too large for OTA slot");
         return false;
     }
-    if (!headerChecked_ && accLen_ >= 16) {
-        headerChecked_ = true;
-        if (!imageHeaderValid(accBuf_, accLen_, rejectReason_, sizeof(rejectReason_))) {
-            writeOk_ = false;
-            return false;
+    while (len > 0) {
+        size_t chunk = min(len, sizeof(accBuf_) - accLen_);
+        memcpy(accBuf_ + accLen_, data, chunk);
+        accLen_ += chunk;
+        data += chunk;
+        len -= chunk;
+        if (!headerChecked_ && accLen_ >= 16) {
+            headerChecked_ = true;
+            if (!imageHeaderValid(accBuf_, accLen_, rejectReason_, sizeof(rejectReason_))) {
+                writeOk_ = false;
+                return false;
+            }
+        }
+        // Only erase/write complete sectors until the final flush.
+        if (accLen_ == sizeof(accBuf_)) {
+            if (!rboot_write_flash(targetAddr_ + uploadSize_, accBuf_, accLen_)) {
+                reject("flash write failed");
+                return false;
+            }
+            uploadSize_ += accLen_;
+            accLen_ = 0;
+            if ((uploadSize_ % (64 * 1024)) == 0) {
+                Serial.printf("[OTA] written %u bytes\n", (unsigned)uploadSize_);
+            }
         }
     }
-    if (accLen_ + len > sizeof(accBuf_)) {
-        if (!rboot_write_flash(targetAddr_ + uploadSize_, accBuf_, accLen_)) {
-            reject("flash write failed");
-            return false;
-        }
-        uploadSize_ += accLen_;
-        accLen_ = 0;
-    }
-    memcpy(accBuf_ + accLen_, data, len);
-    accLen_ += len;
 #else
     (void)data; (void)len;
 #endif
@@ -350,6 +372,11 @@ bool OtaManager::onUploadChunk(const uint8_t* data, size_t len) {
 }
 
 void OtaManager::onUploadEnd() {
+    if (!uploadActive_) {
+        reject("upload not started or already ended");
+        return;
+    }
+    uploadActive_ = false;
 #if IRAC_RBOOT_OTA
     if (!headerChecked_ && writeOk_) {
         headerChecked_ = true;
@@ -367,6 +394,13 @@ void OtaManager::onUploadEnd() {
     Serial.printf("[OTA] upload done: %u bytes, %s\n",
                   (unsigned)uploadSize_, writeOk_ ? "OK" : "FAILED");
 #endif
+}
+
+void OtaManager::onUploadAbort() {
+    uploadActive_ = false;
+    accLen_ = 0;
+    targetAddr_ = 0;
+    reject("upload aborted or authentication failed");
 }
 
 bool OtaManager::rollbackIfPending(const char* reason) {

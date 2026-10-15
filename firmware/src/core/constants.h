@@ -19,6 +19,8 @@ inline constexpr uint32_t SLAVE_OFFLINE_TIMEOUT_MS   = 30000;
 inline constexpr uint32_t PAIRING_DURATION_MS = 60000;
 
 inline constexpr uint32_t SENSOR_INTERVAL_MS  = 10000;
+// DS18B20 12-bit 转换最长 750ms；非阻塞读取需等待该时长后再取值
+inline constexpr uint32_t DS18B20_CONV_TIME_MS = 750;
 inline constexpr float    SENSOR_TEMP_INVALID = -100.0f;
 inline constexpr float    SENSOR_TEMP_MAX     = 85.0f;
 
@@ -40,7 +42,7 @@ inline constexpr const char* FS_SLAVES_BAK = "/slaves.bak";
 inline constexpr const char* FS_OTA_STATE  = "/ota_state.bin";
 inline constexpr const char* FS_OTA_BOOTS  = "/ota_boots.txt";
 
-inline constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 20000;
+inline constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 30000;
 inline constexpr uint32_t REBOOT_DEFAULT_DELAY_MS = 500;
 inline constexpr uint32_t OTA_CONFIRM_DELAY_MS    = 30000;
 inline constexpr uint8_t  OTA_MAX_CRASH_BOOTS     = 3;

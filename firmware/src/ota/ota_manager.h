@@ -23,12 +23,15 @@ public:
     void onUploadStart();
     bool onUploadChunk(const uint8_t* data, size_t len);
     void onUploadEnd();
+    void onUploadAbort();
 
     bool verifyInFlash(uint32_t baseAddr, uint32_t imageSize,
                        uint8_t targetRom, ManifestInfo& info,
                        char* reason, size_t reasonLen);
 
     bool isPending() const { return state_.pending; }
+    // 上传进行中（START 后、END 前）。中断场景由 3 秒无数据超时兜底退出。
+    bool isUploading() const;
     void markConfirmReady();
     void confirmIfReady();
 
@@ -48,10 +51,12 @@ private:
 
     size_t    uploadSize_     = 0;
     uint32_t  targetAddr_     = 0;
-    bool      writeOk_        = true;
+    bool      uploadActive_   = false;
+    uint32_t  lastChunkMs_    = 0;
+    bool      writeOk_        = false;
     bool      headerChecked_  = false;
-    char      rejectReason_[96];
-    uint8_t   accBuf_[4096];
+    char      rejectReason_[96] = {};
+    alignas(4) uint8_t accBuf_[4096];
     size_t    accLen_         = 0;
     uint32_t  confirmAt_      = 0;
 

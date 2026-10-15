@@ -23,6 +23,8 @@ private:
     float    roomTempC_      = SENSOR_TEMP_INVALID;
     bool     pirDetected_    = false;
     uint32_t lastReadMs_     = 0;
+    bool     convPending_    = false;   // 已发出转换请求，等待完成
+    uint32_t convReqMs_      = 0;
 };
 
 extern SensorService sensors;

@@ -40,6 +40,11 @@ void ApMasterMode::onEnter() {
 
 void ApMasterMode::loop() {
     web.loop();
+    // OTA 上传期间只服务 web：DS18B20 阻塞读/UDP 广播会掐断 TCP 吞吐
+    if (ota.isUploading()) {
+        yield();
+        return;
+    }
     sensors.loop();
     udp.loopMaster();
 

@@ -35,7 +35,8 @@ void WebServer::beginSTA(uint16_t port) {
 
 void WebServer::loop() {
     server_.handleClient();
-    if (captiveActive_) dns_.processNextRequest();
+    // OTA 上传期间暂停 captive DNS：手机联网探测会与上传争抢单线程，拖垮吞吐
+    if (captiveActive_ && !ota.isUploading()) dns_.processNextRequest();
 }
 
 void WebServer::stop() {
@@ -86,6 +87,14 @@ void WebServer::registerApiRoutes() {
     server_.on("/", HTTP_GET, [this]() { this->handleRoot(); });
 
 #if IRAC_RBOOT_OTA
+    // Validate credentials before the browser sends the firmware body.
+    server_.on("/api/ota/auth", HTTP_GET, [this]() {
+        if (!server_.authenticate("admin", getApPass())) {
+            server_.send(403, "application/json", "{\"ok\":false,\"error\":\"auth_failed\"}");
+            return;
+        }
+        server_.send(200, "application/json", "{\"ok\":true}");
+    });
     server_.on("/update", HTTP_POST,
         [this]() {
             if (!server_.authenticate("admin", getApPass())) {
@@ -116,13 +125,21 @@ void WebServer::registerApiRoutes() {
         },
         []() {
             HTTPUpload& upload = web.raw().upload();
+            // START returning does not stop the parser's WRITE/END callbacks.
+            // Reject every unauthenticated callback, including retries after a
+            // previous upload, before it can reach the flash writer.
+            if (!web.raw().authenticate("admin", getApPass())) {
+                ota.onUploadAbort();
+                return;
+            }
             if (upload.status == UPLOAD_FILE_START) {
-                if (!web.raw().authenticate("admin", getApPass())) return;
                 ota.onUploadStart();
             } else if (upload.status == UPLOAD_FILE_WRITE) {
                 ota.onUploadChunk(upload.buf, upload.currentSize);
             } else if (upload.status == UPLOAD_FILE_END) {
                 ota.onUploadEnd();
+            } else if (upload.status == UPLOAD_FILE_ABORTED) {
+                ota.onUploadAbort();
             }
         });
 

@@ -20,7 +20,7 @@ void AppContext::begin() {
     Serial.printf("[CTX] chipId=%s mac=%s slaveId=%s\n",
                   chipId_.c_str(), mac_.c_str(), slaveId_.c_str());
 
-    configStore.begin(false);
+    configStore.begin(true);   // 裸分区（全擦后）在启动时自愈格式化，别等保存时才发现
     configStore.load();
     slaves.load();
     hvacState.loadFrom(configStore.cfg);
@@ -84,9 +84,11 @@ DeviceModeId AppContext::decideBootMode() {
         Serial.println(F("[BOOT] force_mode=HOME, connecting STA"));
         leds.setAll(true, false, false);
         if (network.connectSTABlocking(cfg.sta_ssid, cfg.sta_pass)) {
+            configStore.scheduleSave();   // 清空 last_sta_error 需落盘
             return DeviceModeId::StaHome;
         }
         Serial.println(F("[BOOT] HOME STA failed"));
+        configStore.save();               // 持久化失败原因
         if (ota.rollbackIfPending("force_mode=home, STA failed")) {
             return DeviceModeId::ApMaster;
         }
@@ -132,9 +134,11 @@ DeviceModeId AppContext::decideBootMode() {
         Serial.println(F("[BOOT] AUTO, trying STA Home"));
         leds.setAll(true, false, false);
         if (network.connectSTABlocking(cfg.sta_ssid, cfg.sta_pass)) {
+            configStore.scheduleSave();   // 清空 last_sta_error 需落盘
             return DeviceModeId::StaHome;
         }
         Serial.println(F("[BOOT] STA failed, trying slave scan"));
+        configStore.scheduleSave();       // 持久化失败原因，AP 配网页显示
     }
 
     Serial.println(F("[BOOT] scanning for master"));

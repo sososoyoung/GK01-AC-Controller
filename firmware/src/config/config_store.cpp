@@ -19,12 +19,20 @@ bool ensureFSMounted(bool formatIfNeeded) {
     if (!formatIfNeeded) return false;
 
     Serial.println(F("[FS] mount failed, formatting on demand..."));
-    LittleFS.format();
+    Serial.printf("[FS] flash real=%uKB configured=%uKB\n",
+                  (unsigned)(ESP.getFlashChipRealSize() / 1024),
+                  (unsigned)(ESP.getFlashChipSize() / 1024));
+    if (!LittleFS.format()) {
+        Serial.println(F("[FS] format failed"));
+        return false;
+    }
     fsMounted = LittleFS.begin();
     if (!fsMounted) {
         Serial.println(F("[FS] mount still failed after format"));
+        return false;
     }
-    return fsMounted;
+    Serial.println(F("[FS] formatted and mounted"));
+    return true;
 }
 
 bool ConfigStore::begin(bool formatIfNeeded) {
@@ -35,6 +43,10 @@ bool ConfigStore::begin(bool formatIfNeeded) {
 
 bool ConfigStore::writeAtomic(const char* path, const char* bakPath) {
     String tmp = String(path) + ".tmp";
+    if (!LittleFS.exists(tmp.c_str())) {
+        Serial.println(F("[CFG] temporary file missing"));
+        return false;
+    }
     LittleFS.remove(bakPath);
     bool hadOld = LittleFS.exists(path);
     if (hadOld && !LittleFS.rename(path, bakPath)) {
@@ -94,6 +106,7 @@ bool ConfigStore::load() {
         else if (key == "device_name")         copyTo(cfg.device_name, sizeof(cfg.device_name), sanitizeMetadata(val, sizeof(cfg.device_name) - 1));
         else if (key == "device_icon")         copyTo(cfg.device_icon, sizeof(cfg.device_icon), sanitizeIconKey(val));
         else if (key == "device_floor")        copyTo(cfg.device_floor, sizeof(cfg.device_floor), sanitizeMetadata(val, sizeof(cfg.device_floor) - 1));
+        else if (key == "last_sta_error")      copyTo(cfg.last_sta_error, sizeof(cfg.last_sta_error), sanitizeConfigValue(val, sizeof(cfg.last_sta_error) - 1));
     }
     f.close();
 
@@ -104,12 +117,14 @@ bool ConfigStore::load() {
 }
 
 bool ConfigStore::save() {
-    if (!ensureFSMounted(true)) {
+    mounted_ = ensureFSMounted(true);
+    if (!mounted_) {
         Serial.println(F("[CFG] skipped save: LittleFS unavailable"));
         return false;
     }
 
-    File f = LittleFS.open("/config.tmp", "w");
+    String tmp = String(FS_CONFIG_TXT) + ".tmp";
+    File f = LittleFS.open(tmp.c_str(), "w");
     if (!f) {
         Serial.println(F("[CFG] write failed"));
         return false;
@@ -133,6 +148,7 @@ bool ConfigStore::save() {
     f.printf("device_name=%s\n",         cfg.device_name);
     f.printf("device_icon=%s\n",         cfg.device_icon);
     f.printf("device_floor=%s\n",        cfg.device_floor);
+    f.printf("last_sta_error=%s\n",      cfg.last_sta_error);
     f.close();
 
     if (!writeAtomic(FS_CONFIG_TXT, FS_CONFIG_BAK)) return false;

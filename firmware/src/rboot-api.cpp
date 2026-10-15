@@ -88,6 +88,13 @@ uint32_t rboot_get_rom_address(uint8_t rom) {
 //     inactive slot).
 bool rboot_write_flash(uint32_t start_addr, const uint8_t* data, size_t len) {
     if (!data || len == 0) return false;
+    const uint32_t target = rboot_get_target_rom() == 0 ? ROM0_ADDRESS : ROM1_ADDRESS;
+    const uint32_t end = target + 0xFE000;
+    if (start_addr < target || start_addr >= end || len > end - start_addr ||
+        (start_addr % SPI_FLASH_SEC_SIZE) != 0) {
+        Serial.println(F("[RBOOT] refused write outside inactive slot or unaligned sector"));
+        return false;
+    }
 
     uint32_t sector_start = (start_addr / SPI_FLASH_SEC_SIZE) * SPI_FLASH_SEC_SIZE;
     uint32_t sector_end = ((start_addr + len - 1) / SPI_FLASH_SEC_SIZE + 1) * SPI_FLASH_SEC_SIZE;

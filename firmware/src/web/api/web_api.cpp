@@ -135,7 +135,11 @@ static void handleWifiConnect() {
     }
     str::copyTo(configStore.cfg.sta_ssid, sizeof(configStore.cfg.sta_ssid), ssid);
     str::copyTo(configStore.cfg.sta_pass, sizeof(configStore.cfg.sta_pass), pass);
-    configStore.save();
+    configStore.cfg.last_sta_error[0] = '\0';
+    if (!configStore.save()) {
+        S().send(500, "application/json", "{\"ok\":false,\"error\":\"save_failed\"}");
+        return;
+    }
     S().send(200, "application/json", "{\"ok\":true,\"msg\":\"rebooting\"}");
     delay(500);
     ESP.restart();
@@ -159,7 +163,15 @@ static void handleWifiStatus() {
         json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
     }
     json += "\"mqtt\":" + String(mqtt.connected() ? "true" : "false") + ",";
-    json += "\"mqtt_host\":\"" + str::jsonEscape(String(configStore.cfg.mqtt_host)) + "\"";
+    json += "\"mqtt_host\":\"" + str::jsonEscape(String(configStore.cfg.mqtt_host)) + "\",";
+    json += "\"sta_ssid\":\"" + str::jsonEscape(String(configStore.cfg.sta_ssid)) + "\",";
+    json += "\"sta_error\":\"" + str::jsonEscape(String(configStore.cfg.last_sta_error)) + "\",";
+    // FS/flash 诊断：real_kb 是芯片真实容量，size_kb 是当前 SDK 配置；两者不一致或
+    // real_kb < 2048 都会导致 0x200000 处的 LittleFS 无法访问。
+    json += "\"fs\":\"" + String(configStore.isMounted() ? "ok" : "fail") + "\"," +
+            "\"flash_real_kb\":" + String(ESP.getFlashChipRealSize() / 1024) + "," +
+            "\"flash_size_kb\":" + String(ESP.getFlashChipSize() / 1024) + "," +
+            "\"free_heap\":" + String(ESP.getFreeHeap());
     json += "}";
     S().send(200, "application/json", json);
 }
@@ -167,7 +179,11 @@ static void handleWifiStatus() {
 static void handleWifiForget() {
     configStore.cfg.sta_ssid[0] = '\0';
     configStore.cfg.sta_pass[0] = '\0';
-    configStore.save();
+    configStore.cfg.last_sta_error[0] = '\0';
+    if (!configStore.save()) {
+        S().send(500, "application/json", "{\"ok\":false,\"error\":\"save_failed\"}");
+        return;
+    }
     S().send(200, "application/json", "{\"ok\":true,\"msg\":\"rebooting\"}");
     delay(500);
     ESP.restart();
