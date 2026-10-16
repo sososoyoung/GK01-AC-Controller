@@ -5,6 +5,7 @@
 #include "core/string_utils.h"
 #include "core/constants.h"
 #include "hw/ir_service.h"
+#include "hw/tv_remote.h"
 #include "hw/hvac/hvac_registry.h"
 #include "hw/sensor_service.h"
 #include "hw/led_manager.h"
@@ -33,6 +34,14 @@ static void handleHvac() {
     }
     hvac::Command c;
     c.vendor = vendor;
+    String model = S().hasArg("model") ? S().arg("model") : String("0");
+    bool validModel = model.length() > 0 && model.length() <= 2;
+    for (size_t i = 0; i < model.length(); ++i) validModel &= isDigit(model[i]);
+    c.model = model.toInt();
+    if (!validModel || !hvacRegistry.isKnownModel(vendor, c.model)) {
+        S().send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_model\"}");
+        return;
+    }
     c.power  = S().arg("power") == "On";
     c.mode   = S().arg("mode");
     c.temp   = temp;
@@ -53,6 +62,10 @@ static void handleHvac() {
                      target.c_str(), vendor.c_str(),
                      c.power ? "1" : "0", c.mode.c_str(), temp,
                      c.fan.c_str(), c.swing.c_str());
+            if (c.model > 0) {
+                size_t used = strlen(msg);
+                snprintf(msg + used, sizeof(msg) - used, ",%d", c.model);
+            }
             udp.broadcast(msg);
         }
         if (mqtt.connected()) mqtt.publishState();
@@ -64,32 +77,80 @@ static void handleHvac() {
 
 static void handleHvacState() {
     String json = "{\"vendor\":\"" + str::jsonEscape(String(configStore.cfg.last_vendor)) +
-                  "\",\"mode\":\"" + str::jsonEscape(String(configStore.cfg.last_mode)) +
+                  "\",\"model\":" + String(configStore.cfg.last_model) +
+                  ",\"mode\":\"" + str::jsonEscape(String(configStore.cfg.last_mode)) +
                   "\",\"temp\":" + String(configStore.cfg.last_temp) +
                   ",\"fan\":\"" + str::jsonEscape(String(configStore.cfg.last_fan)) +
                   "\",\"power\":" + String(configStore.cfg.last_power ? "true" : "false") + "}";
     S().send(200, "application/json", json);
 }
 
+static void handleHvacCatalog() {
+    String json = "[";
+    auto add = [&](const String& vendor) {
+        if (json.length() > 1) json += ',';
+        json += "{\"vendor\":\"" + vendor + "\",\"models\":[{\"id\":0,\"name\":\"默认（兼容原配置）\"}";
+        for (int16_t model = 1; model <= 32; ++model) {
+            if (hvacRegistry.isKnownModel(vendor, model))
+                json += ",{\"id\":" + String(model) + ",\"name\":\"" +
+                        str::jsonEscape(irutils::modelToStr(strToDecodeType(vendor.c_str()), model)) + "\"}";
+        }
+        json += "]}";
+    };
+    add("WAHIN");
+    for (int i = 1; i <= static_cast<int>(decode_type_t::kLastDecodeType); ++i) {
+        auto protocol = static_cast<decode_type_t>(i);
+        if (IRac::isProtocolSupported(protocol)) add(typeToString(protocol));
+    }
+    json += ']';
+    S().send(200, "application/json", json);
+}
+
+static void handleTv() {
+    String key = S().arg("key");
+    String target = S().arg("target");
+    if (target.length() == 0) target = "LOCAL";
+    if (!tv::isXiaomiKey(key) || target.length() > 128 || target.indexOf(':') >= 0) {
+        S().send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_key_or_target\"}");
+        return;
+    }
+    bool local = target == "LOCAL" || target == "ALL" ||
+                 ("," + target + ",").indexOf("," + ctx.slaveId() + ",") >= 0;
+    if (target != "LOCAL" && !ctx.isApMaster()) {
+        S().send(400, "application/json", "{\"ok\":false,\"error\":\"master_required\"}");
+        return;
+    }
+    if (local && !tv::sendXiaomi(key)) {
+        S().send(500, "application/json", "{\"ok\":false,\"error\":\"send_failed\"}");
+        return;
+    }
+    if (target != "LOCAL") udp.broadcast(("TV:" + target + ":" + key).c_str());
+    S().send(200, "application/json", "{\"ok\":true}");
+}
+
 static void handleSend() {
     String raw = S().arg("raw");
-    if (raw.length() == 0) {
-        S().send(400, "application/json", "{\"ok\":false,\"error\":\"empty\"}");
-        return;
-    }
+    String hz = S().hasArg("frequency") ? S().arg("frequency") : String("38000");
+    bool validHz = hz.length() > 0 && hz.length() <= 5;
+    for (size_t i = 0; i < hz.length(); ++i) validHz &= isDigit(hz[i]);
+    long frequency = hz.toInt();
     static uint16_t buf[512];
     int len = str::parseRawTimings(raw, buf, 512);
-    if (len == 0) {
-        S().send(400, "application/json", "{\"ok\":false,\"error\":\"parse_error\"}");
+    if (!len || !validHz || frequency < 20000 || frequency > 60000) {
+        S().send(400, "application/json", "{\"ok\":false,\"error\":\"invalid_raw_or_frequency\"}");
         return;
     }
-    ir.sendRaw(buf, len);
-    leds.flashRed(30);
-
-    if (ctx.isApMaster()) {
-        String msg = "RAW:" + String(len) + ":" + raw;
-        if (msg.length() < 1024) udp.broadcast(msg.c_str());
+    // Imports are local by default. Legacy /api/send retains broadcast behavior.
+    String target = S().arg("target");
+    String msg = frequency == 38000 ? "RAW:" + String(len) + ":" + raw
+                                    : "RAW2:" + String(frequency) + ":" + raw;
+    if (ctx.isApMaster() && target != "LOCAL" && msg.length() >= 1024) {
+        S().send(400, "application/json", "{\"ok\":false,\"error\":\"mesh_signal_too_long_use_local\"}");
+        return;
     }
+    ir.sendRaw(buf, len, frequency);
+    leds.flashRed(30);
+    if (ctx.isApMaster() && target != "LOCAL") udp.broadcast(msg.c_str());
     S().send(200, "application/json", "{\"ok\":true}");
 }
 
@@ -410,6 +471,8 @@ static void handleFactoryReset() {
 
 void registerHvacRoutes() {
     S().on("/api/hvac",       HTTP_POST, handleHvac);
+    S().on("/api/hvac/catalog", HTTP_GET, handleHvacCatalog);
+    S().on("/api/tv/xiaomi", HTTP_POST, handleTv);
     S().on("/api/hvac/state", HTTP_GET,  handleHvacState);
     S().on("/api/send",       HTTP_POST, handleSend);
     S().on("/api/capture",    HTTP_GET,  handleCapture);

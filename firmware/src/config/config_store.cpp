@@ -100,6 +100,7 @@ bool ConfigStore::load() {
         else if (key == "force_mode")          cfg.force_mode = (uint8_t)val.toInt();
         else if (key == "paired_master_bssid") copyTo(cfg.paired_master_bssid, sizeof(cfg.paired_master_bssid), sanitizeConfigValue(val, sizeof(cfg.paired_master_bssid) - 1));
         else if (key == "last_vendor")         copyTo(cfg.last_vendor, sizeof(cfg.last_vendor), sanitizeConfigValue(val, sizeof(cfg.last_vendor) - 1));
+        else if (key == "last_model")          cfg.last_model = (int16_t)constrain(val.toInt(), 0L, 32L);
         else if (key == "last_mode")           copyTo(cfg.last_mode, sizeof(cfg.last_mode), sanitizeConfigValue(val, sizeof(cfg.last_mode) - 1));
         else if (key == "last_temp")           cfg.last_temp = (uint8_t)val.toInt();
         else if (key == "last_fan")            copyTo(cfg.last_fan, sizeof(cfg.last_fan), sanitizeConfigValue(val, sizeof(cfg.last_fan) - 1));
@@ -142,6 +143,7 @@ bool ConfigStore::save() {
     f.printf("force_mode=%d\n",          cfg.force_mode);
     f.printf("paired_master_bssid=%s\n", cfg.paired_master_bssid);
     f.printf("last_vendor=%s\n",         cfg.last_vendor);
+    f.printf("last_model=%d\n",          cfg.last_model);
     f.printf("last_mode=%s\n",           cfg.last_mode);
     f.printf("last_temp=%d\n",           cfg.last_temp);
     f.printf("last_fan=%s\n",            cfg.last_fan);

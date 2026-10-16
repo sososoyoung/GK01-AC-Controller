@@ -296,6 +296,10 @@ button:disabled,input:disabled{opacity:.5;cursor:default}
 </optgroup>
 </select>
 </div></div>
+<div class="cd"><div class="cd-h">遥控器型号</div><div class="cd-b">
+<select id="ac-model" aria-label="空调遥控器型号"><option value="0">默认（兼容原配置）</option></select>
+<p style="font-size:13px;color:var(--text3);margin-top:8px">优先匹配遥控器背面的型号；不确定时使用默认。</p>
+</div></div>
 <div class="cd"><div class="cd-h">模式</div><div class="cd-b">
 <div class="seg" id="s-mode">
 <button class="active" data-v="Cool">&#10052;&#65039; 制冷</button>
@@ -352,6 +356,15 @@ button:disabled,input:disabled{opacity:.5;cursor:default}
 </div>
 <div id="pg-remote" class="pg">
 <div class="pg-title">遥控器</div><div class="seg subnav" aria-label="遥控功能"><button class="active" onclick="go('remote')">已保存</button><button class="" onclick="go('learn')">学习信号</button></div><div class="pg-sub">点击已保存的按钮发送信号</div>
+<div class="cd"><div class="cd-h">小米电视</div><div class="cd-b">
+<label class="field-label" for="tv-target">控制目标</label><select id="tv-target"><option value="LOCAL">仅本机</option><option value="ALL">全部设备</option></select>
+<p style="font-size:13px;color:var(--text3);margin:10px 0">适用于兼容此红外码组的小米电视。电源为切换键；语音、蓝牙配对需使用原遥控器。无响应时可学习其他红外遥控器的信号。</p>
+<div class="grid" id="tv-buttons"></div>
+</div></div>
+<div class="cd"><div class="cd-h">导入码库</div><div class="cd-b">
+<label class="field-label" for="ir-import">选择转换后的 JSON 码集</label><input id="ir-import" type="file" accept=".json,application/json" onchange="importIrCodes(this)">
+<p style="font-size:13px;color:var(--text3);margin-top:8px">码集保存在当前浏览器，导入按钮仅由本机发射。支持项目转换工具生成的空调与家电码集。</p>
+</div></div>
 <div id="remote-devices"><div class="empty">还没有保存的按钮<br>切换「学习信号」捕获并保存按钮</div></div>
 </div>
 <div id="pg-settings" class="pg"><div class="pg-title">设置</div>
@@ -625,7 +638,7 @@ function tAdj(d){var e=$('t-val'),v=parseInt(e.textContent)+d;if(v<16)v=16;if(v>
 function acCmd(pwr){
 var tgt=getSelectedTargets();
 var p='vendor='+$('ac-v').value+'&power='+pwr+'&mode='+segVal('s-mode')+
-'&temp='+$('t-val').textContent+'&fan='+segVal('s-fan')+'&swing=Off&target='+encodeURIComponent(tgt);
+'&model='+$('ac-model').value+'&temp='+$('t-val').textContent+'&fan='+segVal('s-fan')+'&swing=Off&target='+encodeURIComponent(tgt);
 fetch('/api/hvac',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:p})
 .then(function(r){return r.json()}).then(function(d){toast(d.ok?'\u2713':'\u2717 失败')}).catch(function(){toast('\u2717 失败')});
 }
@@ -641,14 +654,29 @@ function setTargetAll(){
   });
   localStorage.setItem('ir_target','ALL');
 }
-var sv_=localStorage.getItem('ir_ac_v');if(sv_)$('ac-v').value=sv_;
-$('ac-v').onchange=function(){localStorage.setItem('ir_ac_v',this.value)};
-fetch('/api/hvac/state').then(function(r){return r.json()}).then(function(d){
-  if(d.vendor){$('ac-v').value=d.vendor;localStorage.setItem('ir_ac_v',d.vendor)}
+var acCatalog=[],acModel=0;
+function fillAcModels(model){
+  var entry=acCatalog.find(function(x){return x.vendor===$('ac-v').value});
+  var select=$('ac-model');select.innerHTML='';
+  (entry?entry.models:[{id:0,name:'默认（兼容原配置）'}]).forEach(function(x){var o=document.createElement('option');o.value=x.id;o.textContent=x.name;select.appendChild(o)});
+  select.value=String(model||0);if(select.selectedIndex<0)select.value='0';
+  acModel=Number(select.value);
+}
+$('ac-v').onchange=function(){localStorage.setItem('ir_ac_v',this.value);fillAcModels(0)};
+$('ac-model').onchange=function(){acModel=Number(this.value)};
+Promise.all([
+  fetch('/api/hvac/catalog').then(function(r){if(!r.ok)throw Error();return r.json()}),
+  fetch('/api/hvac/state').then(function(r){if(!r.ok)throw Error();return r.json()})
+]).then(function(result){
+  acCatalog=result[0];var d=result[1],select=$('ac-v'),labels={};
+  Array.from(select.options).forEach(function(o){labels[o.value]=o.textContent});select.innerHTML='';
+  acCatalog.forEach(function(x){var o=document.createElement('option');o.value=x.vendor;o.textContent=labels[x.vendor]||x.vendor;select.appendChild(o)});
+  select.value=d.vendor||localStorage.getItem('ir_ac_v')||'GREE';if(select.selectedIndex<0)select.value='GREE';
+  fillAcModels(d.model);
   if(d.temp)$('t-val').textContent=d.temp;
   if(d.mode){document.querySelectorAll('#s-mode button').forEach(function(b){b.classList.toggle('active',b.dataset.v===d.mode)})}
   if(d.fan){document.querySelectorAll('#s-fan button').forEach(function(b){b.classList.toggle('active',b.dataset.v===d.fan)})}
-}).catch(function(){});
+}).catch(function(){toast('空调型号列表加载失败，请刷新')});
 var captureGeneration=0;
 function startPoll(){
   if(pollTimer||currentPage!=='learn'||document.hidden||otaBusy)return;
@@ -699,10 +727,36 @@ localStorage.setItem('ir_sigs',JSON.stringify(sigs));
 $('latest-signal').style.display='none';latestRaw='';
 toast('\u2713 已保存：'+name);
 }
-function sendRaw(raw){
-fetch('/api/send',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'raw='+encodeURIComponent(raw)})
+function sendRaw(raw,frequency,target){
+if(otaBusy)return;
+fetch('/api/send',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'raw='+encodeURIComponent(raw)+'&frequency='+(frequency||38000)+'&target='+encodeURIComponent(target||'')})
 .then(function(r){return r.json()}).then(function(d){toast(d.ok?'\u2713 已发送':'\u2717 失败')})
 .catch(function(){toast('\u2717 失败')});
+}
+function sendSaved(i){var s=sigs[i];if(s)sendRaw(s.raw,s.frequency,s.target)}
+var tvKeys=[['power','电源'],['home','主页'],['menu','菜单'],['up','↑'],['ok','确认'],['back','返回'],['left','←'],['down','↓'],['right','→'],['volume_up','音量＋'],['volume_down','音量－']];
+$('tv-buttons').innerHTML=tvKeys.map(function(k){return '<button class="grid-b" onclick="tvCmd(\''+k[0]+'\')">'+k[1]+'</button>'}).join('');
+function tvCmd(key){
+  if(otaBusy)return;
+  fetch('/api/tv/xiaomi',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key='+encodeURIComponent(key)+'&target='+encodeURIComponent($('tv-target').value)})
+  .then(function(r){return r.json()}).then(function(d){toast(d.ok?'✓ 已发送':'发送失败')}).catch(function(){toast('发送失败')});
+}
+function normalizeIrCodes(data){
+  if(!data||data.version!==1||!Array.isArray(data.signals)||!data.signals.length||data.signals.length>500)throw Error('码集格式错误或按钮超过 500 个');
+  return data.signals.map(function(s){
+    var values=Array.isArray(s.raw)?s.raw:String(s.raw||'').split(',').map(function(x){return /^\d+$/.test(x)?Number(x):NaN});
+    var hz=s.frequency===undefined?38000:s.frequency;
+    if(typeof s.name!=='string'||!s.name.trim()||s.name.length>120||!Number.isInteger(hz)||hz<20000||hz>60000||!values.length||values.length>512||values.some(function(v){return !Number.isInteger(v)||v<0||v>65535})||!values.some(function(v){return v>0}))throw Error('按键格式、频率或信号长度不支持');
+    return {name:s.name,raw:values.join(','),frequency:hz,target:'LOCAL',proto:'RAW'};
+  });
+}
+function importIrCodes(input){
+  if(otaBusy)return;var file=input.files&&input.files[0];if(!file)return;
+  if(file.size>2*1024*1024){toast('文件超过 2 MB');input.value='';return}
+  var rd=new FileReader();rd.onload=function(){
+    try{var added=normalizeIrCodes(JSON.parse(rd.result));var next=sigs.concat(added);localStorage.setItem('ir_sigs',JSON.stringify(next));sigs=next;renderRemote();toast('已导入 '+added.length+' 个按键')}
+    catch(e){toast(e.message||'导入失败')}input.value='';
+  };rd.onerror=function(){toast('读取文件失败');input.value=''};rd.readAsText(file);
 }
 function replayLatest(){if(latestRaw)sendRaw(latestRaw)}
 function renderHist(){
@@ -723,8 +777,7 @@ var el=$('remote-devices');
 if(!sigs.length){el.innerHTML='<div class="empty">还没有保存的按钮<br>切换「学习信号」捕获并保存按钮</div>';return}
 var h='<div class="grid">';
 sigs.forEach(function(s,i){
-h+='<button class="grid-b" onclick="sendRaw(\''+
- jsq(s.raw)+'\')"><span class="ic">'+esc(s.icon||'\u26AB')+
+h+='<button class="grid-b" onclick="sendSaved('+i+')"><span class="ic">'+esc(s.icon||'\u26AB')+
  '</span>'+esc(s.name)+'</button>';
 });
 h+='</div>';

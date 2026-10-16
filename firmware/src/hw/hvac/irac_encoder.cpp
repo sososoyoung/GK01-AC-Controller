@@ -37,7 +37,7 @@ bool IracEncoder::send(const hvac::Command& cmd) {
 
     stdAc::state_t st = {};
     st.protocol = proto;
-    st.model    = 1;
+    st.model    = cmd.model > 0 ? cmd.model : 1;
     st.power    = cmd.power;
     st.mode     = strToMode(cmd.mode);
     st.degrees  = constrain(cmd.temp, minTemp(), maxTemp());

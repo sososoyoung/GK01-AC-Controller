@@ -40,7 +40,14 @@ hvac::IEncoder* HvacRegistry::find(const String& vendor) const {
 bool HvacRegistry::isKnownVendor(const String& vendor) const {
     if (find(vendor)) return true;
     decode_type_t proto = strToDecodeType(vendor.c_str());
-    return proto != decode_type_t::UNKNOWN;
+    return IRac::isProtocolSupported(proto);
+}
+
+bool HvacRegistry::isKnownModel(const String& vendor, int16_t model) const {
+    if (!isKnownVendor(vendor)) return false;
+    if (model == 0) return true;
+    if (model < 1 || model > 32 || vendor == "WAHIN") return false;
+    return irutils::modelToStr(strToDecodeType(vendor.c_str()), model) != "Unknown";
 }
 
 int HvacRegistry::minTempFor(const String& vendor) const {
@@ -56,7 +63,8 @@ int HvacRegistry::maxTempFor(const String& vendor) const {
 }
 
 bool HvacRegistry::send(hvac::Command& cmd) {
-    hvac::IEncoder* enc = find(cmd.vendor);
+    if (!isKnownModel(cmd.vendor, cmd.model)) return false;
+    hvac::IEncoder* enc = cmd.model == 0 ? find(cmd.vendor) : nullptr;
     if (enc) return enc->send(cmd);
 
     appLog.printf("[HVAC] no dedicated encoder for %s, fallback IRac\n", cmd.vendor.c_str());

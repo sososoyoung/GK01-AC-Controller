@@ -11,6 +11,7 @@ struct Command {
     int    temp      = 26;
     String fan;
     String swing;
+    int16_t model = 0; // 0: legacy/default encoder; positive: library remote model
 };
 
 class IEncoder {

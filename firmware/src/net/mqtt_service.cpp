@@ -27,6 +27,7 @@ void onMessage(char* topic, byte* payload, unsigned int length) {
 
     hvac::Command c;
     c.vendor = vendor;
+    c.model = ctx.hvacState.model;
     c.mode   = ctx.hvacState.mode;
     c.temp   = ctx.hvacState.temp;
     c.fan    = ctx.hvacState.fan;

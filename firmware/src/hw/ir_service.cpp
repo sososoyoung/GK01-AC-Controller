@@ -12,9 +12,9 @@ void IrService::begin() {
 void IrService::disableRx() { irRecv_.disableIRIn(); }
 void IrService::enableRx()  { irRecv_.enableIRIn(); }
 
-void IrService::sendRaw(const uint16_t* timings, size_t len) {
+void IrService::sendRaw(const uint16_t* timings, size_t len, uint16_t frequency) {
     irRecv_.disableIRIn();
-    irSend_.sendRaw(timings, len, 38);
+    irSend_.sendRaw(timings, len, frequency);
     irRecv_.enableIRIn();
 }
 

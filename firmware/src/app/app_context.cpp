@@ -197,6 +197,7 @@ const char* getApPass() {
 
 void HvacState::applyFrom(const hvac::Command& cmd) {
     vendor = cmd.vendor;
+    model = cmd.model;
     power  = cmd.power;
     mode   = cmd.mode;
     temp   = cmd.temp;
@@ -209,10 +210,12 @@ void HvacState::persistTo(Config& cfg) const {
     cfg.last_temp  = (uint8_t)temp;
     str::copyTo(cfg.last_fan,    sizeof(cfg.last_fan),    fan);
     cfg.last_power = power;
+    cfg.last_model = model;
 }
 
 void HvacState::loadFrom(const Config& cfg) {
     if (strlen(cfg.last_vendor) > 0) vendor = cfg.last_vendor;
+    model = cfg.last_model;
     power = cfg.last_power;
     if (strlen(cfg.last_mode) > 0) mode = cfg.last_mode;
     temp = constrain((int)cfg.last_temp, HVAC_MIN_TEMP_DEFAULT, HVAC_MAX_TEMP_DEFAULT);

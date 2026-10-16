@@ -24,6 +24,7 @@
 
 struct HvacState {
     String vendor = "GREE";
+    int16_t model = 0;
     bool   power  = false;
     String mode   = "Cool";
     int    temp   = 26;

@@ -3,6 +3,7 @@
 #include "config/config_store.h"
 #include "app/app_context.h"
 #include "hw/ir_service.h"
+#include "hw/tv_remote.h"
 #include "hw/hvac/hvac_registry.h"
 #include "core/string_utils.h"
 
@@ -11,11 +12,11 @@ UdpMesh udp;
 namespace {
 uint32_t lastHelloSent = 0;
 
-void slaveExecRaw(const String& data) {
+void slaveExecRaw(const String& data, uint16_t frequency = 38000) {
     static uint16_t buf[512];
     int len = str::parseRawTimings(data, buf, 512);
     if (len == 0) return;
-    ir.sendRaw(buf, len);
+    ir.sendRaw(buf, len, frequency);
     leds.flashRed(30);
     appLog.printf("[SLAVE] RAW len=%d\n", len);
 }
@@ -45,8 +46,14 @@ void slaveExecHvac(const String& data) {
     if (fan.length() == 0) fan = "Auto";
     String swing = (c5 >= 0) ? data.substring(c5 + 1) : "Off";
 
+    int c6 = swing.indexOf(',');
+    String modelText = c6 >= 0 ? swing.substring(c6 + 1) : "0";
+    if (c6 >= 0) swing = swing.substring(0, c6);
+    if (modelText.length() == 0 || modelText.length() > 2) return;
+    for (size_t i = 0; i < modelText.length(); ++i) if (!isDigit(modelText[i])) return;
     hvac::Command c{vendor, power, mode, temp, fan, swing};
-    hvacRegistry.send(c);
+    c.model = modelText.toInt();
+    if (!hvacRegistry.send(c)) return;
     ctx.hvacState.applyFrom(c);
     ctx.hvacState.persistTo(configStore.cfg);
     configStore.scheduleSave();
@@ -220,9 +227,21 @@ void UdpMesh::loopSlave() {
         String msg = String(rcvBuf_);
         appLog.printf("[SLAVE] UDP received bytes=%u\n", (unsigned)rcvLen_);
 
-        if (msg.startsWith("RAW:")) {
+        if (msg.startsWith("RAW2:")) {
+            int colon = msg.indexOf(':', 5);
+            long hz = msg.substring(5, colon).toInt();
+            if (colon > 5 && hz >= 20000 && hz <= 60000) slaveExecRaw(msg.substring(colon + 1), hz);
+        } else if (msg.startsWith("RAW:")) {
             int firstColon = msg.indexOf(':', 4);
             if (firstColon > 0) slaveExecRaw(msg.substring(firstColon + 1));
+        } else if (msg.startsWith("TV:")) {
+            String payload = msg.substring(3);
+            int colon = payload.indexOf(':');
+            if (colon > 0) {
+                String target = payload.substring(0, colon);
+                if (target == "ALL" || ("," + target + ",").indexOf("," + ctx.slaveId() + ",") >= 0)
+                    tv::sendXiaomi(payload.substring(colon + 1));
+            }
         } else if (msg.startsWith("HVAC:")) {
             String payload = msg.substring(5);
             int colon = payload.indexOf(':');

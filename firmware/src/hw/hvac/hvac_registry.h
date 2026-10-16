@@ -14,6 +14,7 @@ public:
 
     bool send(hvac::Command& cmd);
     bool isKnownVendor(const String& vendor) const;
+    bool isKnownModel(const String& vendor, int16_t model) const;
     int  minTempFor(const String& vendor) const;
     int  maxTempFor(const String& vendor) const;
 

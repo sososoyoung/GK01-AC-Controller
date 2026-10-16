@@ -88,12 +88,17 @@ bool parseMacBytes(const String& mac, uint8_t out[6]) {
 
 int parseRawTimings(const String& s, uint16_t* buf, int maxLen) {
     int count = 0, start = 0;
-    while (count < maxLen) {
+    while (true) {
+        if (count >= maxLen) return 0; // Never replay a truncated signal.
         int comma = s.indexOf(',', start);
-        String part = (comma >= 0) ? s.substring(start, comma) : s.substring(start);
+        String part = comma >= 0 ? s.substring(start, comma) : s.substring(start);
         part.trim();
-        if (part.length() == 0) break;
-        buf[count++] = (uint16_t)part.toInt();
+        if (part.length() == 0 || part.length() > 5) return 0;
+        for (size_t i = 0; i < part.length(); ++i) if (!isDigit(part[i])) return 0;
+        long value = part.toInt();
+        if (value < 0 || value > 65535) return 0;
+        // Zero durations are used when splitting timings longer than uint16_t.
+        buf[count++] = static_cast<uint16_t>(value);
         if (comma < 0) break;
         start = comma + 1;
     }

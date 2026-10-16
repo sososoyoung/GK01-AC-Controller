@@ -21,7 +21,8 @@ struct Config {
     char     mqtt_topic[32] = "ir_ac";
     uint8_t  force_mode = FORCE_MODE_AUTO;
     char     paired_master_bssid[18] = "";
-    char     last_vendor[16] = "GREE";
+    char     last_vendor[32] = "GREE";
+    int16_t  last_model = 0;
     char     last_mode[8]   = "Cool";
     uint8_t  last_temp      = 26;
     char     last_fan[8]    = "Auto";

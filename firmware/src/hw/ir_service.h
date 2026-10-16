@@ -20,7 +20,7 @@ public:
 
     void begin();
 
-    void sendRaw(const uint16_t* timings, size_t len);
+    void sendRaw(const uint16_t* timings, size_t len, uint16_t frequency = 38000);
     bool sendAc(const stdAc::state_t& state);
 
     void disableRx();
