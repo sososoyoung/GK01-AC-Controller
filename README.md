@@ -1,8 +1,17 @@
 # GK01 AC Controller
 
+当前版本：**v3.1.0**（2026-10-16） · [完整变更记录](CHANGELOG.md)
+
 基于吉联科技（GreeLink）GK01 开发板的万能红外空调控制器固件。
 
 多台设备自动组网，手机控制一台主机即可同步驱动所有从机发射红外信号。支持设备管理、定向控制、多选发送，适合办公室多楼层场景。
+
+## v3.1.0 更新
+
+- 遥控首页合并空调与电视，通过顶部切换；电视使用常规遥控布局，空调品牌与型号左右并排，按钮文字适配深浅主题。
+- 设备页先显示本机，本机信息与从机列表独立更新；读取失败保留已有内容并自动重试，空调加载错误不再跨页弹出。
+- 修复 rBoot 切到 ROM1 后仍可能读取 ROM0 的 Flash 映射问题；GPIO0 改为运行时按键，长按至少 5 秒后松开才恢复出厂。
+- 网页“关于”、启动日志和本地 OTA 包默认共用 `firmware/include/version.h` 的版本号。构建命令和旧固件恢复方式见下文。
 
 ## 功能
 
@@ -16,7 +25,7 @@
 - **空调型号匹配** — 从当前协议库生成遥控器型号选项，设备保存型号，MQTT 与主从转发沿用配置
 - **小米电视** — 内置 11 个候选红外按键，支持本机／全部设备发送（具体机型需实测）
 - **码库导入** — Flipper RAW/NEC、SmartIR Broadlink/Raw 转换为 JSON，在网页导入固定按键；详见 [红外码库说明](IR_CODE_LIBRARY.md)
-- **红外学习** — 在「遥控 → 学习信号」捕获信号，命名保存到当前浏览器
+- **红外学习** — 在「学习 → 学习信号」捕获信号，命名保存到当前浏览器
 - **网页实时日志** — 热点密码认证后按需查看当前设备应用日志，仅 RAM 暂存，不保存历史
 - **空调状态持久化** — 温度/模式/风速自动保存，重开页面恢复上次设置
 - **MQTT Home Assistant** — STA Home 模式接入家庭路由器，支持 HA Climate 自动发现
@@ -33,7 +42,7 @@
 
 ## 界面预览
 
-本轮完整设计、实现与验收记录见 [UI 与实时日志修改方案](.sisyphus/plans/ui-maintenance-live-logs.md)。以下界面截图使用模拟设备数据。
+以下为 v3.1.0 界面截图，使用模拟设备数据；功能变化和升级注意事项见 [CHANGELOG](CHANGELOG.md)。
 
 ### 设备管理
 
@@ -49,7 +58,13 @@
 
 ![空调页面](screenshots/ac-page.png)
 
-多选控制目标（全选/部分/单个），设置自动保存，下次打开恢复上次状态。
+品牌与遥控器型号在同一行；多选控制目标（全选/部分/单个），设置自动保存。另见[深色空调预览](screenshots/ac-dark.png)。
+
+### 电视遥控
+
+![电视遥控](screenshots/tv-light.png)
+
+电源位于上方，方向键环绕确认键，返回／主页／菜单及音量分组排列。另见[深色电视预览](screenshots/tv-dark.png)。
 
 ## 硬件
 
@@ -96,9 +111,9 @@ python3 prepare_flash.py both
 python3 prepare_flash.py both
 ```
 
-本地打包的 manifest 版本默认是 `dev`，可通过 `IRAC_VERSION` 指定，例如 `IRAC_VERSION=cachefix-20261016 python3 prepare_flash.py both`。此标识用于 OTA 文件校验信息，不会修改“关于”中的固定应用版本号。
+版本号统一定义在 `firmware/include/version.h`，当前为 `3.1.0`。网页“关于”、`/api/system/info` 的 `firmwareVersion`、串口启动日志和本地 OTA manifest 默认读取该定义；升级版本时先修改此文件，再重新编译并打包。发布时应使用匹配的 `v3.1.0` tag。`IRAC_VERSION` 和 `GITHUB_REF_NAME` 仍可覆盖打包标签，但只影响 manifest，不会修改运行中的应用版本。
 
-也可以从 [GitHub Releases](https://github.com/Timeink88/GK01-AC-Controller/releases) 下载预编译固件。首次刷写优先下载 `combined-vX.X.bin`。
+也可以从 [GitHub Releases](https://github.com/sososoyoung/GK01-AC-Controller/releases) 下载预编译固件。首次刷写优先下载 `combined-vX.X.bin`。
 
 > `factory` 环境只用于硬件诊断、救援和验证主程序能否直接从 `0x0` 启动。`factory` 固件不经过 rboot，也不支持 Web OTA。正式发布和日常使用应刷 `combined.bin`，这样才有 ROM0/ROM1 双分区和 Web OTA。
 
@@ -429,7 +444,8 @@ v3.0 起按领域模块化拆分，当前主要结构如下：
 │   │   ├── diag.cpp                   # 独立硬件诊断固件（factory 环境）
 │   │   ├── rboot-api.cpp              # rboot SDK 桥接
 │   │   └── rboot-cache.cpp            # ROM0/ROM1 指令缓存映射，启动时锁定 bank
-│   ├── include/webui.h                # 内嵌 WebUI（4 Tab、网络/维护分组）
+│   ├── include/webui.h                # 内嵌 WebUI（遥控/学习/设备/设置）
+│   ├── include/version.h              # 应用与默认 OTA manifest 共用的版本号
 │   ├── legacy/main_v1.cpp             # v2.x 单文件参考（不参与编译）
 │   ├── prepare_flash.py               # 生成 EA04 + IRACOTA1 OTA 包和首刷 combined 镜像
 │   ├── rboot-bootloader/              # rboot 双分区引导器（MIT）
@@ -440,6 +456,7 @@ v3.0 起按领域模块化拆分，当前主要结构如下：
 ├── .github/workflows/
 │   ├── ci.yml                         # push 自动编译验证
 │   └── release.yml                    # tag 自动编译 + 发 GitHub Release
+├── CHANGELOG.md                       # 版本变更与升级注意事项
 └── README.md
 ```
 
@@ -477,16 +494,19 @@ v3.0 起按领域模块化拆分，当前主要结构如下：
 
 ## 版本历史
 
+完整记录见 [CHANGELOG.md](CHANGELOG.md)。v3.1.0 的界面改动、GPIO0 操作变化和旧版 OTA 映射恢复步骤均已列入变更记录。
+
 | 版本 | 说明 |
 |------|------|
-| v1.3 | 初始版本，基础空调控制 + 学习 + 协同 |
-| v1.4 | 网络配置宏化、AP 自动选频、按键触发 IR、灯光 bug 修复 |
-| v1.5 | 华凌空调自定义编码器（R05D/Gray码）、格力 YBOFB 自定义编码器、Captive Portal |
-| v2.0 | WiFi STA + MQTT Home Assistant + DS18B20 温度 + AM312 人体传感器 + rboot 双分区 OTA |
-| v2.2 | AP 热点名称/密码可配置、从机自适应组网、短路 D7-GND 恢复出厂、WebUI 恢复出厂设置 |
-| v2.3 | AP 热点配置、强制模式切换、从机列表+配对模式、WebUI 显示 MAC |
-| v2.4 | 设备管理（楼层分组/命名/图标）、多选控制、定向 IR、远程配置从机、空调状态持久化、深色模式、rboot `EA 04` OTA 镜像、`IRACOTA1` manifest + CRC32 防误刷、LED 状态反馈、短按办公室预设 |
+| v3.1.0 | 合并空调/电视首页、型号并排与主题适配；设备页独立加载/重试；修复 ROM1 Flash 映射；GPIO0 按键在长按松开后复位；统一应用与默认 OTA 包版本 |
 | v3.0 | 架构重写：3001 行单文件拆分为 28 个模块化文件（按领域分层 app/core/config/hw/net/web/ota/modes）；DeviceMode 策略模式替代 if 分支；HvacEncoder 注册表替代 vendor if 链；HvacState 单一状态源；UI 升级（OTA 实时进度条/手动暗色模式/页面切换动画）；体积 600KB → 584KB；行为 100% 向后兼容 |
+| v2.4 | 设备管理（楼层分组/命名/图标）、多选控制、定向 IR、远程配置从机、空调状态持久化、深色模式、rboot `EA 04` OTA 镜像、`IRACOTA1` manifest + CRC32 防误刷、LED 状态反馈、短按办公室预设 |
+| v2.3 | AP 热点配置、强制模式切换、从机列表+配对模式、WebUI 显示 MAC |
+| v2.2 | AP 热点名称/密码可配置、从机自适应组网、短路 D7-GND 恢复出厂、WebUI 恢复出厂设置 |
+| v2.0 | WiFi STA + MQTT Home Assistant + DS18B20 温度 + AM312 人体传感器 + rboot 双分区 OTA |
+| v1.5 | 华凌空调自定义编码器（R05D/Gray码）、格力 YBOFB 自定义编码器、Captive Portal |
+| v1.4 | 网络配置宏化、AP 自动选频、按键触发 IR、灯光 bug 修复 |
+| v1.3 | 初始版本，基础空调控制 + 学习 + 协同 |
 
 ## 许可证
 

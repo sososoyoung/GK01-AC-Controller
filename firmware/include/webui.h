@@ -473,7 +473,7 @@ button:disabled,input:disabled{opacity:.5;cursor:default}
 <div style="font-size:13px;color:var(--text3);line-height:1.45">设备运行后短接 GPIO0-GND：短按为格力制冷 26°C 一键开/关；长按至少 5 秒后松开，恢复出厂设置。上电前短接会进入刷写模式。</div>
 </div></div>
 <div class="cd"><div class="cd-h">关于</div>
-<div class="it"><span>版本</span><span style="color:var(--gray)">v3.0.0</span></div>
+<div class="it"><span>版本</span><span id="sys-version" style="color:var(--gray)">读取中…</span></div>
 <div class="it"><span>构建时间</span><span id="sys-build-time" style="color:var(--gray)">--</span></div>
 <div class="it"><span>MAC</span><span id="sys-mac" style="color:var(--gray)">--</span></div>
 <div class="it"><span>设备</span><span style="color:var(--gray)">IR Mini V105</span></div>
@@ -1000,6 +1000,7 @@ function loadSysInfo(){
     deviceInfo=d;
     if(currentPage==='devices')renderDevices();
     if(d.mac)$('sys-mac').textContent=d.mac;
+    $('sys-version').textContent=d.firmwareVersion?'v'+d.firmwareVersion:'未知';
     if(d.buildTime)$('sys-build-time').textContent=d.buildTime;
     var seg=$('s-devmode');if(seg){
       seg.querySelectorAll('button').forEach(function(b){

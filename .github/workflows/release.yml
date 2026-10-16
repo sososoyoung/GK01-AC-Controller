@@ -148,19 +148,15 @@ jobs:
 
             ## ✨ 本次更新
 
-            - 修复 rboot 双分区首刷镜像布局：`0x0000 rboot`、`0x1000 rboot config`、`0x2000 ROM0`
-            - 固定 ROM 地址：ROM0=`0x2000`，ROM1=`0x102000`
-            - 发布包中的 `firmware-rom0/rom1` 均改为 rboot `EA 04` new image，修复旧 `E9` 镜像导致 `Fatal exception (3), excvaddr=0x40202010` 的启动崩溃
-            - 新增推荐 OTA 包 `firmware-ota`，并在 OTA 镜像内嵌 `IRACOTA1` manifest + CRC32，防止跨设备、损坏包和无 manifest 旧包误刷
-            - WebUI OTA 页面动态显示当前 ROM 和准备写入 ROM，不再写死 ROM1
-            - 增加 OTA 上传前 checksum/manifest/CRC32 校验和固件端写后回读校验，减少刷错包导致无法启动的风险
-            - Release 自动校验 `firmware-ota`、兼容 rom 包和 `combined` 中的 OTA 镜像，校验失败不会发布
-            - 默认 AP 名称统一为 `IR-AC`
-            - 首页默认进入空调页，底部导航调整为：空调 / 遥控 / 设备 / 学习 / 设置
-            - 增加 LED 状态反馈：启动、AP 就绪、OTA pending、配对、红外活动
-            - 本机短按新增办公室预设：格力制冷 26°C 一键开/关；长按 5 秒仍为恢复出厂
-            - 补充 README 的首刷、救砖、WebUI OTA、回滚边界和发布包说明
+            - 遥控首页切换空调／电视，品牌与型号并排，电视按键采用常规遥控布局并适配深浅主题
+            - 设备页先显示本机，本机与从机信息独立更新，读取失败自动重试
+            - 修复 ROM1 Flash 映射，启动时锁定当前 bank，增加状态字段与 ELF 链接检查
+            - GPIO0 作为运行时按键，长按至少 5 秒后松开执行恢复出厂
+            - 网页版本、启动日志和默认 OTA manifest 共用版本定义
 
-            完整更新历史见 [README.md](https://github.com/${{ github.repository }}/blob/master/README.md#版本历史)
+            > 旧版若已出现“显示 ROM1、界面仍旧”，请先通过 USB-TTL 刷入新版 combined 镜像恢复映射，再继续 OTA。
+
+            完整更新历史及升级注意事项见 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md)。
+
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

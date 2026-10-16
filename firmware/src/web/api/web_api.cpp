@@ -4,6 +4,7 @@
 #include "config/config_store.h"
 #include "core/string_utils.h"
 #include "core/constants.h"
+#include "version.h"
 #include "hw/ir_service.h"
 #include "hw/tv_remote.h"
 #include "hw/hvac/hvac_registry.h"
@@ -333,6 +334,7 @@ static void handleDeviceConfig() {
 static void handleSystemInfo() {
     String json = "{";
     json.reserve(256);
+    json += "\"firmwareVersion\":\"" IRAC_FIRMWARE_VERSION "\",";
     json += "\"buildTime\":\"" + String(web.buildTime()) + "\",";
     json += "\"mac\":\"" + str::jsonEscape(WiFi.macAddress()) + "\",";
     json += "\"apMac\":\"" + str::jsonEscape(WiFi.softAPmacAddress()) + "\",";

@@ -1,4 +1,5 @@
 #include "core/live_log.h"
+#include "version.h"
 #include <Arduino.h>
 
 #include "app/app_context.h"
@@ -67,7 +68,7 @@ static void onButtonLongPress() {
 void setup() {
     Serial.begin(115200);
     appLog.println();
-    appLog.println(F("[BOOT] IR Mini V105 — architecture overhaul"));
+    appLog.printf("[BOOT] IR Mini V105 firmware %s\n", IRAC_FIRMWARE_VERSION);
 
     pinMode(PIN_LED_BLUE,   OUTPUT);
     pinMode(PIN_LED_RED,    OUTPUT);

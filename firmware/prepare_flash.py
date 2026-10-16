@@ -9,6 +9,7 @@ Usage: python prepare_flash.py [rom0|rom1|both]
 """
 
 import os
+import re
 import struct
 import sys
 import zlib
@@ -50,8 +51,15 @@ def fixed_ascii(value, size):
 
 
 def firmware_version():
-    value = os.environ.get("IRAC_VERSION") or os.environ.get("GITHUB_REF_NAME") or "dev"
-    return value.strip() or "dev"
+    for name in ("IRAC_VERSION", "GITHUB_REF_NAME"):
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    header = (FIRMWARE_DIR / "include/version.h").read_text(encoding="utf-8")
+    match = re.search(r'^#define\s+IRAC_FIRMWARE_VERSION\s+"([^"]+)"', header, re.MULTILINE)
+    if not match:
+        raise ValueError("include/version.h is missing IRAC_FIRMWARE_VERSION")
+    return match.group(1)
 
 
 def crc32_with_zeroed_field(data, field_offset, field_size):

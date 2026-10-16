@@ -6,6 +6,7 @@ const browser=await chromium.launch({headless:true});
 let failSlaves=false,failCatalog=false,slavesGate=null,releaseSlaves;
 const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[],requests=[];
 page.on('pageerror',e=>errors.push(e.message));
+const version=fs.readFileSync('firmware/include/version.h','utf8').match(/#define IRAC_FIRMWARE_VERSION "([^"]+)"/)[1];
 const html=fs.readFileSync('firmware/include/webui.h','utf8').split('R"rawliteral(')[1].split(')rawliteral"')[0];
 await page.route('http://gk01.test/**',async route=>{
 const req=route.request(),path=new URL(req.url()).pathname;
@@ -17,13 +18,15 @@ let data={ok:true};
 if(path==='/api/hvac/catalog')data=[{vendor:'GREE',models:[{id:0,name:'默认'},{id:1,name:'YAW1F'},{id:2,name:'YBOFB'}]},{vendor:'WAHIN',models:[{id:0,name:'默认'}]}];
 if(path==='/api/hvac/state')data={vendor:'GREE',model:2,temp:25,mode:'Cool',fan:'Auto'};
 if(path==='/api/wifi/status')data={mode:'ap',ssid:'IR-AC',ip:'10.1.1.1'};
-if(path==='/api/system/info')data={mode:'ap',deviceName:'客厅主机',apMac:'00:11:22:33:44:55'};
+if(path==='/api/system/info')data={firmwareVersion:version,mode:'ap',deviceName:'客厅主机',apMac:'00:11:22:33:44:55'};
 if(path==='/api/ota/status')data={ok:true,current_rom:0,target_rom:1};
 if(path==='/api/slaves')data={slaves:[]};
 return route.fulfill({contentType:'application/json',body:JSON.stringify(data)});
 });
 await page.goto('http://gk01.test/');await page.waitForLoadState('networkidle');
 assert.equal(await page.locator('#ac-model').inputValue(),'2');
+assert.equal(await page.locator('#sys-version').textContent(),'v'+version);
+for(const theme of ['light','dark']){await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);await page.screenshot({path:'/tmp/gk01-ac-inline-'+theme+'.png',fullPage:true,animations:'disabled'})}
 await page.getByRole('button',{name:'开机',exact:true}).click();
 await page.waitForTimeout(100);assert(requests.find(r=>r.path==='/api/hvac'&&new URLSearchParams(r.body).get('model')==='2'));
 await page.selectOption('#ac-v','WAHIN');assert.equal(await page.locator('#ac-model').inputValue(),'0');assert.equal(await page.locator('#ac-model option').count(),1);
