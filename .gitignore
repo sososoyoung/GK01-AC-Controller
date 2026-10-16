@@ -38,6 +38,7 @@ docs/
 doc/
 .wiki-work/
 AGENTS.md
+.sisyphus/
 
 # Codegraph
 .codegraph/
