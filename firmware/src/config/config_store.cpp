@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "config/config_store.h"
 #include "core/string_utils.h"
 #include "core/constants.h"
@@ -18,45 +19,45 @@ bool ensureFSMounted(bool formatIfNeeded) {
     if (fsMounted) return true;
     if (!formatIfNeeded) return false;
 
-    Serial.println(F("[FS] mount failed, formatting on demand..."));
-    Serial.printf("[FS] flash real=%uKB configured=%uKB\n",
+    appLog.println(F("[FS] mount failed, formatting on demand..."));
+    appLog.printf("[FS] flash real=%uKB configured=%uKB\n",
                   (unsigned)(ESP.getFlashChipRealSize() / 1024),
                   (unsigned)(ESP.getFlashChipSize() / 1024));
     if (!LittleFS.format()) {
-        Serial.println(F("[FS] format failed"));
+        appLog.println(F("[FS] format failed"));
         return false;
     }
     fsMounted = LittleFS.begin();
     if (!fsMounted) {
-        Serial.println(F("[FS] mount still failed after format"));
+        appLog.println(F("[FS] mount still failed after format"));
         return false;
     }
-    Serial.println(F("[FS] formatted and mounted"));
+    appLog.println(F("[FS] formatted and mounted"));
     return true;
 }
 
 bool ConfigStore::begin(bool formatIfNeeded) {
     mounted_ = ensureFSMounted(formatIfNeeded);
-    Serial.println(F("[MODULE] config_store real impl loaded"));
+    appLog.println(F("[MODULE] config_store real impl loaded"));
     return mounted_;
 }
 
 bool ConfigStore::writeAtomic(const char* path, const char* bakPath) {
     String tmp = String(path) + ".tmp";
     if (!LittleFS.exists(tmp.c_str())) {
-        Serial.println(F("[CFG] temporary file missing"));
+        appLog.println(F("[CFG] temporary file missing"));
         return false;
     }
     LittleFS.remove(bakPath);
     bool hadOld = LittleFS.exists(path);
     if (hadOld && !LittleFS.rename(path, bakPath)) {
-        Serial.println(F("[CFG] backup rename failed"));
+        appLog.println(F("[CFG] backup rename failed"));
         LittleFS.remove(tmp.c_str());
         return false;
     }
 
     if (!LittleFS.rename(tmp.c_str(), path)) {
-        Serial.println(F("[CFG] commit rename failed"));
+        appLog.println(F("[CFG] commit rename failed"));
         if (hadOld) LittleFS.rename(bakPath, path);
         return false;
     }
@@ -67,14 +68,14 @@ bool ConfigStore::writeAtomic(const char* path, const char* bakPath) {
 
 bool ConfigStore::load() {
     if (!ensureFSMounted(false)) {
-        Serial.println(F("[CFG] LittleFS unavailable, using defaults"));
+        appLog.println(F("[CFG] LittleFS unavailable, using defaults"));
         return false;
     }
 
     File f = LittleFS.open(FS_CONFIG_TXT, "r");
     if (!f) {
         f = LittleFS.open(FS_CONFIG_BAK, "r");
-        if (f) Serial.println(F("[CFG] config.txt missing, loading backup"));
+        if (f) appLog.println(F("[CFG] config.txt missing, loading backup"));
     }
     if (!f) return false;
 
@@ -119,14 +120,14 @@ bool ConfigStore::load() {
 bool ConfigStore::save() {
     mounted_ = ensureFSMounted(true);
     if (!mounted_) {
-        Serial.println(F("[CFG] skipped save: LittleFS unavailable"));
+        appLog.println(F("[CFG] skipped save: LittleFS unavailable"));
         return false;
     }
 
     String tmp = String(FS_CONFIG_TXT) + ".tmp";
     File f = LittleFS.open(tmp.c_str(), "w");
     if (!f) {
-        Serial.println(F("[CFG] write failed"));
+        appLog.println(F("[CFG] write failed"));
         return false;
     }
     f.printf("ap_ssid=%s\n",             cfg.ap_ssid);
@@ -154,7 +155,7 @@ bool ConfigStore::save() {
     if (!writeAtomic(FS_CONFIG_TXT, FS_CONFIG_BAK)) return false;
     savePending_ = false;
     saveDueAt_   = 0;
-    Serial.println(F("[CFG] saved"));
+    appLog.println(F("[CFG] saved"));
     return true;
 }
 

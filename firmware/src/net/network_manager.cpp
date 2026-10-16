@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "net/network_manager.h"
 #include "config/config_store.h"
 #include "app/app_context.h"
@@ -31,7 +32,7 @@ static void recordStaError() {
 }
 
 bool NetworkManager::connectSTABlocking(const char* ssid, const char* pass, uint32_t timeoutMs) {
-    Serial.printf("[NET] STA connecting to %s\n", ssid);
+    appLog.printf("[NET] STA connecting to %s\n", ssid);
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, pass);
 
@@ -39,17 +40,17 @@ bool NetworkManager::connectSTABlocking(const char* ssid, const char* pass, uint
     while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeoutMs) {
         leds.setBlue((millis() / 500) % 2 == 0);
         delay(500);
-        Serial.print(".");
+        appLog.print(".");
     }
 
     if (WiFi.status() == WL_CONNECTED) {
         configStore.cfg.last_sta_error[0] = '\0';
-        Serial.printf("\n[NET] STA connected, IP=%s RSSI=%d\n",
+        appLog.printf("\n[NET] STA connected, IP=%s RSSI=%d\n",
                       WiFi.localIP().toString().c_str(), WiFi.RSSI());
         return true;
     }
     recordStaError();
-    Serial.printf("\n[NET] STA connect failed: %s\n", configStore.cfg.last_sta_error);
+    appLog.printf("\n[NET] STA connect failed: %s\n", configStore.cfg.last_sta_error);
     return false;
 }
 
@@ -59,36 +60,36 @@ bool NetworkManager::beginAP(const char* ssid, const char* pass) {
     IPAddress gw(10, 1, 1, 1);
     IPAddress sn(255, 255, 255, 0);
     if (!WiFi.softAPConfig(ip, gw, sn)) {
-        Serial.println(F("[NET] softAPConfig failed"));
+        appLog.println(F("[NET] softAPConfig failed"));
     }
 
     bool ok = WiFi.softAP(ssid, pass, 1);
 
     if (!ok && strlen(configStore.cfg.ap_pass) > 0) {
-        Serial.println(F("[NET] AP start failed, retry without pass"));
+        appLog.println(F("[NET] AP start failed, retry without pass"));
         configStore.cfg.ap_pass[0] = '\0';
         configStore.save();
         ok = WiFi.softAP(ssid, AP_DEFAULT_PASS, 1);
     }
     if (!ok && strlen(configStore.cfg.ap_ssid) > 0) {
-        Serial.println(F("[NET] AP start failed, retry with default SSID"));
+        appLog.println(F("[NET] AP start failed, retry with default SSID"));
         configStore.cfg.ap_ssid[0] = '\0';
         configStore.save();
         ok = WiFi.softAP(AP_DEFAULT_SSID, AP_DEFAULT_PASS, 1);
     }
 
     if (!ok) {
-        Serial.println(F("[NET] AP start failed"));
+        appLog.println(F("[NET] AP start failed"));
         leds.blink(PIN_LED_RED, 8, 80, 80);
         return false;
     }
 
-    Serial.printf("[NET] AP: %s  http://%s\n", ssid, WiFi.softAPIP().toString().c_str());
+    appLog.printf("[NET] AP: %s  http://%s\n", ssid, WiFi.softAPIP().toString().c_str());
     return true;
 }
 
 bool NetworkManager::reconnect() {
-    Serial.println(F("[NET] WiFi.reconnect()"));
+    appLog.println(F("[NET] WiFi.reconnect()"));
     return WiFi.reconnect();
 }
 
@@ -102,7 +103,7 @@ void NetworkManager::maintain() {
         static uint32_t lastReconnect = 0;
         if ((uint32_t)(millis() - lastReconnect) >= WIFI_RECONNECT_INTERVAL_MS) {
             lastReconnect = millis();
-            Serial.println(F("[NET] WiFi lost, reconnecting..."));
+            appLog.println(F("[NET] WiFi lost, reconnecting..."));
             WiFi.reconnect();
         }
     } else {
@@ -117,7 +118,7 @@ NetworkManager::State NetworkManager::state() const {
 
 bool NetworkManager::scanForMaster(const char* ssid, String& outSsid,
                                     uint8_t outBssid[6], int32_t& outChannel) {
-    Serial.println(F("[NET] scanning for master..."));
+    appLog.println(F("[NET] scanning for master..."));
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
     delay(100);
@@ -154,7 +155,7 @@ bool NetworkManager::scanForMaster(const char* ssid, String& outSsid,
             } else {
                 targetBssidSet = false;
             }
-            Serial.printf("[NET] candidate AP: %s RSSI=%d%s\n",
+            appLog.printf("[NET] candidate AP: %s RSSI=%d%s\n",
                           outSsid.c_str(), bestRssi, bssidMatches ? " paired" : "");
         }
     }

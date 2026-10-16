@@ -25,15 +25,17 @@ function setup(password = 'test-password', fileOk = true) {
     setRequestHeader(key, value) {this.headers[key] = value;}
     send(body) {this.body = body; sent.push(this);}
   }
-  vm.runInNewContext(handler, {
+  const context = {
     document: {getElementById: id => elements[id]}, XMLHttpRequest: XHR,
     FormData: class {append() {}},
     btoa: s => Buffer.from(s, 'binary').toString('base64'),
     unescape, encodeURIComponent, setTimeout() {}, location: {reload() {}},
-    otaSupported: true, otaFileOk: fileOk, otaValidateFile() {},
-  });
+    otaSupported: true, otaFileOk: fileOk, otaBusy: false, otaValidation: 0, otaValidateFile() {},
+    suspendPagePolls() {context.suspended = true;}, stopLogs() {context.logsStopped = true;}, resumePagePolls() {context.resumed = true;},
+  };
+  vm.runInNewContext(handler, context);
   submit({preventDefault() {}});
-  return {elements, sent};
+  return {elements, sent, submit, context};
 }
 
 let t = setup('');
@@ -74,4 +76,35 @@ for (const password of ['test-password', '热点密码123']) {
   assert.match(t.elements['ota-prog-stat'].textContent, /认证失败/);
   assert.equal(t.elements['ota-btn'].disabled, false);
 }
-console.log('PASS OTA auth: empty/wrong password, network failure, timeout, preflight before upload, UTF-8 credentials, retry');
+t = setup();
+t.submit({preventDefault() {}});
+assert.equal(t.sent.length, 1, 'Duplicate submit must not start another preflight');
+assert.equal(t.context.otaBusy, true);
+assert.equal(t.elements['ota-file'].disabled, true);
+assert.equal(t.elements['ota-password'].disabled, true);
+assert.equal(t.context.suspended, true);
+assert.equal(t.context.logsStopped, true);
+t.sent[0].onerror();
+assert.equal(t.context.otaBusy, false);
+assert.equal(t.elements['ota-file'].disabled, false);
+assert.equal(t.context.resumed, true);
+// Actual asynchronous validator: a late FileReader for an old selection cannot
+// overwrite the currently selected file's result, nor change an active upload.
+const validationStart = script.indexOf('function otaValidateFile(');
+const validationCode = script.slice(validationStart, script.indexOf('\n(function(){', validationStart));
+const readers = [];
+const validation = {
+  otaBusy: false, otaValidation: 0, otaSupported: true, otaTargetRom: 1,
+  otaTargetFile: 'ota.bin', Uint8Array,
+  otaSetReady(ok) {validation.ready = ok;}, otaMeta() {}, otaMsg() {}, otaSize() {return '1KB';},
+  otaRbootInfo() {return {ok:true};}, otaManifestInfo() {return {ok:true,version:'test'};},
+  FileReader: class {constructor() {readers.push(this);this.result=new ArrayBuffer(16);} readAsArrayBuffer() {}},
+};
+vm.runInNewContext(validationCode, validation);
+validation.otaValidateFile({name:'old.bin',size:16});
+validation.otaValidateFile({name:'new.bin',size:16});
+readers[0].onload();assert.equal(validation.ready, false);
+readers[1].onload();assert.equal(validation.ready, true);
+validation.otaValidateFile({name:'newer.bin',size:16});
+validation.otaBusy=true;readers[2].onload();assert.equal(validation.ready,false);
+console.log('PASS OTA auth: empty/wrong password, network failure, timeout, preflight before upload, UTF-8 credentials, retry, duplicate submit, background suspension, stale file validation');

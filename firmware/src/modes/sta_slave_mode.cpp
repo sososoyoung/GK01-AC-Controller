@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "modes/sta_slave_mode.h"
 #include "app/app_context.h"
 #include "net/udp_mesh.h"
@@ -7,10 +8,10 @@
 #include "ota/ota_manager.h"
 
 void StaSlaveMode::onEnter() {
-    Serial.println(F("[STA_SLAVE] onEnter"));
+    appLog.println(F("[STA_SLAVE] onEnter"));
 
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println(F("[STA_SLAVE] WiFi not connected, fallback to AP"));
+        appLog.println(F("[STA_SLAVE] WiFi not connected, fallback to AP"));
         ctx.changeMode(DeviceModeId::ApMaster);
         return;
     }
@@ -26,7 +27,7 @@ void StaSlaveMode::onEnter() {
                    String(configStore.cfg.device_floor);
     udp.sendTo(IPAddress(10, 1, 1, 1), hello.c_str());
 
-    Serial.println(F("=== Slave Ready ==="));
+    appLog.println(F("=== Slave Ready ==="));
     ota.checkOnBoot(true, false);
 }
 

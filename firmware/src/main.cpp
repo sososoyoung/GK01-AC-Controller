@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include <Arduino.h>
 
 #include "app/app_context.h"
@@ -25,11 +26,11 @@ static void onButtonShortPress() {
     c.fan    = OFFICE_PRESET_FAN;
     c.swing  = OFFICE_PRESET_SWING;
 
-    Serial.printf("[BTN] office preset: %s %s %dC\n",
+    appLog.printf("[BTN] office preset: %s %s %dC\n",
                   c.vendor.c_str(), power ? "ON" : "OFF", c.temp);
 
     if (!hvacRegistry.send(c)) {
-        Serial.println(F("[BTN] preset failed"));
+        appLog.println(F("[BTN] preset failed"));
         leds.blinkRestore(PIN_LED_RED, 3, 80, 80);
         return;
     }
@@ -53,7 +54,7 @@ static void onButtonShortPress() {
 }
 
 static void onButtonLongPress() {
-    Serial.println(F("[BTN] long -> factory reset"));
+    appLog.println(F("[BTN] long -> factory reset"));
     for (int i = 0; i < 10; i++) {
         leds.setYellow(true); delay(50);
         leds.setYellow(false); delay(50);
@@ -65,8 +66,8 @@ static void onButtonLongPress() {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println();
-    Serial.println(F("[BOOT] IR Mini V105 — architecture overhaul"));
+    appLog.println();
+    appLog.println(F("[BOOT] IR Mini V105 — architecture overhaul"));
 
     pinMode(PIN_LED_BLUE,   OUTPUT);
     pinMode(PIN_LED_RED,    OUTPUT);
@@ -81,18 +82,18 @@ void setup() {
     button.begin(onButtonShortPress, onButtonLongPress);
 
     if (!configStore.isMounted()) {
-        Serial.println(F("[FS] LittleFS unavailable at boot; continuing with defaults"));
+        appLog.println(F("[FS] LittleFS unavailable at boot; continuing with defaults"));
         leds.blinkRestore(PIN_LED_RED, 2, 80, 80);
     }
 
 #if IRAC_RBOOT_OTA
-    Serial.printf("[BOOT] ROM %d (rboot dual-partition)\n", rboot_get_current_rom());
+    appLog.printf("[BOOT] ROM %d (rboot dual-partition)\n", rboot_get_current_rom());
 #else
-    Serial.println(F("[BOOT] factory firmware (rboot OTA disabled)"));
+    appLog.println(F("[BOOT] factory firmware (rboot OTA disabled)"));
 #endif
 
     DeviceModeId id = ctx.decideBootMode();
-    Serial.printf("[BOOT] mode: %s\n", modeString(id));
+    appLog.printf("[BOOT] mode: %s\n", modeString(id));
     ctx.changeMode(id);
 }
 

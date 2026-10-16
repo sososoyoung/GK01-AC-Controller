@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "modes/sta_home_mode.h"
 #include "app/app_context.h"
 #include "net/mqtt_service.h"
@@ -9,10 +10,10 @@
 #include "ota/ota_manager.h"
 
 void StaHomeMode::onEnter() {
-    Serial.println(F("[STA_HOME] onEnter"));
+    appLog.println(F("[STA_HOME] onEnter"));
 
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println(F("[STA_HOME] WiFi not connected, fallback to AP"));
+        appLog.println(F("[STA_HOME] WiFi not connected, fallback to AP"));
         ctx.changeMode(DeviceModeId::ApMaster);
         return;
     }
@@ -29,7 +30,7 @@ void StaHomeMode::onEnter() {
         mqtt.connect();
     }
 
-    Serial.println(F("=== STA Home Ready ==="));
+    appLog.println(F("=== STA Home Ready ==="));
     ota.checkOnBoot(true, false);
 }
 

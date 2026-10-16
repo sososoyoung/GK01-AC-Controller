@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "hw/ir_service.h"
 
 IrService ir;
@@ -5,7 +6,7 @@ IrService ir;
 void IrService::begin() {
     irSend_.begin();
     irRecv_.enableIRIn();
-    Serial.println(F("[MODULE] ir_service real impl loaded"));
+    appLog.println(F("[MODULE] ir_service real impl loaded"));
 }
 
 void IrService::disableRx() { irRecv_.disableIRIn(); }
@@ -47,7 +48,7 @@ void IrService::pollCapture() {
     captureBits_ = results.bits;
     hasCapture_  = true;
 
-    Serial.printf("[IR] %s %dbit len=%u\n", captureProto_, captureBits_, (unsigned)captureLen_);
+    appLog.printf("[IR] %s %dbit len=%u\n", captureProto_, captureBits_, (unsigned)captureLen_);
 
     irRecv_.resume();
     irRecv_.enableIRIn();

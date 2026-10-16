@@ -5,10 +5,15 @@ on:
     branches: [master, dav]
     paths:
       - 'firmware/**'
+      - 'scripts/**'
+      - 'tests/**'
       - '.github/workflows/ci.yml'
   pull_request:
     paths:
+      - '.github/workflows/ci.yml'
       - 'firmware/**'
+      - 'scripts/**'
+      - 'tests/**'
 
 jobs:
   build:
@@ -19,6 +24,13 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+
+      - name: Run host and WebUI regression tests
+        run: |
+          python3 scripts/test_storage_ota.py
+          python3 scripts/test_live_logs.py
+          node scripts/test_ota_auth.js
+          node scripts/test_web_lifecycle.js
 
       - name: Cache PlatformIO packages
         uses: actions/cache@v5
@@ -41,9 +53,16 @@ jobs:
         run: pio run -e rom1
         working-directory: firmware
 
+      - name: Build factory firmware (OTA disabled)
+        run: pio run -e factory
+        working-directory: firmware
+
       - name: Build flash images (strip eboot from firmware)
         run: python prepare_flash.py both
         working-directory: firmware
+
+      - name: Verify generated OTA and combined images
+        run: python3 scripts/verify_ota_images.py firmware/flash_images/ota.bin firmware/flash_images/rom0.bin firmware/flash_images/rom1.bin firmware/flash_images/combined.bin
 
       - name: Upload firmware artifacts
         if: always()

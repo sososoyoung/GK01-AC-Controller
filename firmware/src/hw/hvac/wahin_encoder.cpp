@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "hw/hvac/wahin_encoder.h"
 #include "hw/ir_service.h"
 
@@ -60,7 +61,7 @@ bool WahinEncoder::send(const hvac::Command& cmd) {
     sendFrame(s, data);
     ir.enableRx();
 
-    Serial.printf("[WAHIN] Pwr:%s Mode:%s T:%d Fan:%s Data=[%02X %02X %02X]\n",
+    appLog.printf("[WAHIN] Pwr:%s Mode:%s T:%d Fan:%s Data=[%02X %02X %02X]\n",
                   cmd.power ? "ON" : "OFF", cmd.mode.c_str(), temp, cmd.fan.c_str(),
                   data[0], data[1], data[2]);
     return true;

@@ -5,7 +5,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="IR遥控">
@@ -83,7 +83,7 @@ background:rgba(0,0,0,.78);color:#fff;padding:12px 24px;border-radius:14px;
 font-size:15px;font-weight:500;z-index:999;opacity:0;transition:all .2s;pointer-events:none;
 text-align:center;max-width:260px}
 .toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
-input[type=text]{width:100%;padding:11px 14px;border-radius:10px;
+input[type=text],input[type=password],input[type=number]{width:100%;padding:11px 14px;border-radius:10px;
 border:.5px solid var(--gray4);font-size:16px;background:var(--card);color:var(--text);outline:none}
 input:focus{border-color:var(--blue)}
 .raw-box{background:var(--gray6);border-radius:8px;padding:10px;font-family:"SF Mono",Menlo,monospace;
@@ -181,8 +181,9 @@ select{background:var(--card);color:var(--text)}
 .theme-btn{position:fixed;top:10px;right:12px;z-index:60;width:36px;height:36px;border-radius:50%;
 border:none;background:rgba(0,0,0,.06);font-size:22px;cursor:pointer;line-height:1;padding:0;
 display:flex;align-items:center;justify-content:center;transition:transform .12s}
+.theme-btn{color:var(--text);background:var(--gray5)}
 .theme-btn:active{transform:scale(.9)}
-@media(prefers-color-scheme:dark){.theme-btn{background:rgba(255,255,255,.1)}}
+
 [data-theme=light]{--bg:#f2f2f7;--card:#fff;--blue:#007AFF;--green:#34C759;--red:#FF3B30;
 --orange:#FF9500;--purple:#AF52DE;--teal:#5AC8FA;--pink:#FF2D55;
 --gray:#8e8e93;--gray3:#c7c7cc;--gray4:#d1d1d6;--gray5:#e5e5ea;--gray6:#f2f2f7;
@@ -193,6 +194,30 @@ display:flex;align-items:center;justify-content:center;transition:transform .12s
 --text:#fff;--text2:#ebebf5;--text3:#ababaf}
 body{background:var(--bg);color:var(--text)}
 .hdr{background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+
+/* Shared controls use the same tokens in system and manually selected themes. */
+[hidden]{display:none!important}
+nav.bar{background:var(--card)}
+nav.bar a,.seg button,.b{min-height:44px}
+.seg button.active{background:var(--card);color:var(--text)}
+.seg{background:var(--gray5)}
+label.field-label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin:10px 0 6px}
+input[type=text],input[type=password],input[type=number]{min-width:0;min-height:44px;background:var(--card);color:var(--text);border:1px solid var(--gray4)}
+button:disabled,input:disabled{opacity:.5;cursor:default}
+:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.password-field{display:flex;align-items:center;position:relative;margin-bottom:10px}
+.password-field input{padding-right:66px;margin:0!important}
+.password-field button{position:absolute;right:3px;top:2px;bottom:2px;min-width:58px;min-height:40px;border:0;border-radius:8px;background:transparent;color:var(--blue);font-size:13px;cursor:pointer}
+.help{font-size:13px;line-height:1.5;color:var(--text3);margin:8px 0}
+.subnav{margin:0 0 16px}
+.log-view{height:250px;overflow:auto;padding:10px;border:1px solid var(--gray4);border-radius:10px;background:var(--gray6);color:var(--text2);font:11px/1.6 "SF Mono",Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0}
+.log-actions{display:flex;flex-wrap:wrap;gap:8px}.log-actions .b{flex:1;padding:10px 12px;font-size:14px}
+.log-status{font-size:13px;color:var(--text3);margin:8px 0;overflow-wrap:anywhere}
+.log-scroll{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;color:var(--text3)}
+.log-scroll input{width:20px;height:20px}
+.ota-guide details{margin-top:8px}.ota-guide summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--blue)}
+.dev-name,.dev-sub,.it span{overflow-wrap:anywhere;min-width:0}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -201,7 +226,7 @@ body{background:var(--bg);color:var(--text)}
 <div id="rename-modal" class="modal-bg">
 <div class="modal">
 <h3>重命名</h3>
-<input type="text" id="rename-input" placeholder="新名称">
+<label class="field-label" for="rename-input">新名称</label><input type="text" id="rename-input" placeholder="新名称">
 <div class="btns">
 <button class="b b-gy" onclick="closeRename()">取消</button>
 <button class="b b-bl" onclick="doRename()">确定</button>
@@ -213,7 +238,7 @@ body{background:var(--bg);color:var(--text)}
 <div class="pg-sub">主机负责发指令；从机配对后会跟随主机执行。</div>
 <div id="dev-floor-list"></div>
 <div style="text-align:center;padding:8px">
-<button class="b b-or b-fw" id="dev-pair-btn" onclick="togglePair()">配对新设备</button>
+<p class="help" id="dev-pair-help">主机开启配对后，60 秒内给另一台设备上电或重启。</p><button hidden class="b b-or b-fw" id="dev-pair-btn" onclick="togglePair()">配对新设备</button>
 </div>
 </div>
 
@@ -299,7 +324,7 @@ body{background:var(--bg);color:var(--text)}
 </div>
 
 <div id="pg-learn" class="pg">
-<div class="pg-title">学习</div>
+<div class="pg-title">遥控器</div><div class="seg subnav" aria-label="遥控功能"><button class="" onclick="go('remote')">已保存</button><button class="active" onclick="go('learn')">学习信号</button></div>
 <div class="pg-sub">
 <span class="badge badge-gy" id="learn-st">就绪</span>
 </div>
@@ -314,7 +339,7 @@ body{background:var(--bg);color:var(--text)}
 </div>
 <div id="latest-signal" style="display:none">
 <div class="raw-box" id="raw-preview"></div>
-<input type="text" id="sig-name" placeholder="命名，如：开机、音量+">
+<label class="field-label" for="sig-name">遥控按钮名称</label><input type="text" id="sig-name" placeholder="命名，如：开机、音量+">
 <div style="display:flex;gap:8px;margin-top:10px">
 <button class="b b-gn" style="flex:1" onclick="saveSig()">保存</button>
 <button class="b b-ol" style="flex:1" onclick="replayLatest()">&#9654; 重放</button>
@@ -326,50 +351,12 @@ body{background:var(--bg);color:var(--text)}
 <button class="b b-gy b-fw" style="font-size:14px" onclick="clearHist()">清除历史</button>
 </div>
 <div id="pg-remote" class="pg">
-<div class="pg-title">遥控器</div>
-<div class="pg-sub">学习保存的按钮，点击发送</div>
-<div id="remote-devices"><div class="empty">还没有保存的按钮<br>去「学习」捕获信号吧</div></div>
+<div class="pg-title">遥控器</div><div class="seg subnav" aria-label="遥控功能"><button class="active" onclick="go('remote')">已保存</button><button class="" onclick="go('learn')">学习信号</button></div><div class="pg-sub">点击已保存的按钮发送信号</div>
+<div id="remote-devices"><div class="empty">还没有保存的按钮<br>切换「学习信号」捕获并保存按钮</div></div>
 </div>
-<div id="pg-settings" class="pg">
-<div class="pg-title">设置</div>
-<div class="cd"><div class="cd-h">WiFi</div><div class="cd-b">
-<div id="wifi-status" style="font-size:14px;color:var(--text3);margin-bottom:10px"></div>
-<button class="b b-bl b-fw" style="margin-bottom:10px" onclick="scanWifi()">&#128269; 扫描WiFi</button>
-<div id="wifi-list" style="display:none">
-<div style="font-size:12px;color:var(--gray3);margin-bottom:6px">扫描列表仅含 2.4G 网络（设备不支持 5G）</div>
-<div style="max-height:200px;overflow-y:auto;border:.5px solid var(--gray4);border-radius:10px;margin-bottom:10px" id="wifi-scan-results"></div>
-<input type="text" id="wifi-ssid" placeholder="WiFi 名称（SSID）" style="margin-bottom:8px">
-<input type="text" id="wifi-pass" placeholder="WiFi 密码" style="margin-bottom:10px">
-<button class="b b-gn b-fw" onclick="connectWifi()">连接并重启</button>
-</div>
-<div id="wifi-forget-wrap" style="display:none;margin-top:10px">
-<button class="b b-rd b-fw" style="font-size:14px" onclick="forgetWifi()">忘记网络（切回AP模式）</button>
-</div>
-</div></div>
-<div class="cd"><div class="cd-h">热点配置</div><div class="cd-b">
-<div style="font-size:13px;color:var(--text3);margin-bottom:8px">
-配置 AP 热点名称和密码。从机使用相同配置自动组网，恢复出厂后回到默认值。</div>
-<input type="text" id="ap-ssid" placeholder="热点名称（默认 IR-AC）" style="margin-bottom:8px">
-<input type="text" id="ap-pass" placeholder="热点密码（至少8位，默认 12345678）" style="margin-bottom:10px">
-<button class="b b-bl b-fw" onclick="saveApConfig()">保存热点配置并重启</button>
-</div></div>
-<div class="cd"><div class="cd-h">MQTT</div><div class="cd-b">
-<input type="text" id="mqtt-host" placeholder="服务器地址（如 192.168.1.100）" style="margin-bottom:8px">
-<div style="display:flex;gap:8px;margin-bottom:8px">
-<input type="text" id="mqtt-port" placeholder="端口" value="1883" style="flex:1">
-<input type="text" id="mqtt-user" placeholder="用户名（可选）" style="flex:1">
-</div>
-<input type="text" id="mqtt-pass" placeholder="密码（可选）" style="margin-bottom:8px">
-<input type="text" id="mqtt-topic" placeholder="Topic 前缀" value="ir_ac" style="margin-bottom:10px">
-<button class="b b-pp b-fw" onclick="saveMqtt()">保存MQTT配置并重启</button>
-</div></div>
-<div class="cd"><div class="cd-h">数据</div>
-<div class="it" onclick="exportAll()"><span>导出配置</span><span class="arr"></span></div>
-<div class="it" onclick="importAll()"><span>导入配置</span><span class="arr"></span></div>
-<div class="it" onclick="clearAll()"><span style="color:var(--red)">清除所有数据</span><span class="arr"></span></div>
-<div class="it" onclick="factoryReset()"><span style="color:var(--red)">恢复出厂设置</span><span class="arr"></span></div>
-</div>
-<div class="cd" id="devmode-card" style="display:none"><div class="cd-h">工作模式</div><div class="cd-b">
+<div id="pg-settings" class="pg"><div class="pg-title">设置</div>
+<div class="seg subnav" aria-label="设置分组"><button class="active" data-settings="network" onclick="settingsPanel('network')">网络连接</button><button data-settings="maintenance" onclick="settingsPanel('maintenance')">维护诊断</button></div>
+<div id="settings-network"><div class="cd" id="devmode-card" style="display:none"><div class="cd-h">工作模式</div><div class="cd-b">
 <div class="seg" id="s-devmode">
 <button data-v="auto" class="active">自动</button>
 <button data-v="ap">独立主机</button>
@@ -379,22 +366,38 @@ body{background:var(--bg);color:var(--text)}
 <div style="font-size:13px;color:var(--text3);margin-top:8px" id="devmode-help">自动会根据配置选择家庭网络、主从组网或独立热点。</div>
 <button class="b b-bl b-fw" style="margin-top:10px" onclick="saveForceMode()">保存并重启</button>
 </div></div>
-<div class="cd" id="slaves-card" style="display:none"><div class="cd-h">从机配对</div>
-<div style="padding:8px 16px 0;font-size:13px;color:var(--text3);line-height:1.45">点击配对后，60 秒内给另一台设备上电或重启。主机会记录它，之后空调页选择“所有设备”即可一起控制。</div>
-<div id="slave-list" style="padding:8px 16px"><div style="color:var(--gray);font-size:13px">加载中...</div></div>
-<div style="padding:0 16px 12px">
-<button class="b b-or b-fw" id="pair-btn" onclick="togglePair()">配对新设备</button>
-</div></div>
-<div class="cd"><div class="cd-h">本机按键</div><div class="cd-b">
-<div style="font-size:13px;color:var(--text3);line-height:1.45">短按：格力制冷 26°C 一键开/关。长按 5 秒：恢复出厂设置。</div>
-</div></div>
-<div class="cd"><div class="cd-h">关于</div>
-<div class="it"><span>版本</span><span style="color:var(--gray)">v3.0.0</span></div>
-<div class="it"><span>MAC</span><span id="sys-mac" style="color:var(--gray)">--</span></div>
-<div class="it"><span>设备</span><span style="color:var(--gray)">IR Mini V105</span></div>
-<div class="it"><span>协议库</span><span style="color:var(--gray)">IRremoteESP8266</span></div>
+<div class="cd"><div class="cd-h">WiFi</div><div class="cd-b">
+<div id="wifi-status" style="font-size:14px;color:var(--text3);margin-bottom:10px"></div>
+<button class="b b-bl b-fw" style="margin-bottom:10px" onclick="scanWifi()">&#128269; 扫描WiFi</button>
+<div id="wifi-list" style="display:none">
+<div style="font-size:12px;color:var(--gray3);margin-bottom:6px">扫描列表仅含 2.4G 网络（设备不支持 5G）</div>
+<div style="max-height:200px;overflow-y:auto;border:.5px solid var(--gray4);border-radius:10px;margin-bottom:10px" id="wifi-scan-results"></div>
+<label class="field-label" for="wifi-ssid">家庭 WiFi 名称（仅支持 2.4G）</label><input type="text" id="wifi-ssid" placeholder="WiFi 名称（SSID）" style="margin-bottom:8px">
+<label class="field-label" for="wifi-pass">家庭 WiFi 密码</label><input type="password" autocomplete="off" id="wifi-pass" placeholder="WiFi 密码" style="margin-bottom:10px">
+<button class="b b-gn b-fw" onclick="connectWifi()">连接并重启</button>
 </div>
-<div class="cd"><div class="cd-h">固件更新 (OTA)</div><div class="cd-b">
+<div id="wifi-forget-wrap" style="display:none;margin-top:10px">
+<button class="b b-rd b-fw" style="font-size:14px" onclick="forgetWifi()">忘记网络（切回AP模式）</button>
+</div>
+</div></div>
+<div class="cd"><div class="cd-h">热点配置</div><div class="cd-b">
+<div style="font-size:13px;color:var(--text3);margin-bottom:8px">
+配置 AP 热点名称和密码。从机使用相同配置自动组网，恢复出厂后回到默认值。</div>
+<label class="field-label" for="ap-ssid">本设备热点名称</label><input type="text" id="ap-ssid" placeholder="热点名称（默认 IR-AC）" style="margin-bottom:8px">
+<label class="field-label" for="ap-pass">本设备热点密码</label><input type="password" autocomplete="off" id="ap-pass" placeholder="热点密码（至少8位，默认 12345678）" style="margin-bottom:10px">
+<button class="b b-bl b-fw" onclick="saveApConfig()">保存热点配置并重启</button>
+</div></div>
+<div class="cd"><div class="cd-h">MQTT</div><div class="cd-b">
+<label class="field-label" for="mqtt-host">MQTT 服务器地址</label><input type="text" id="mqtt-host" placeholder="服务器地址（如 192.168.1.100）" style="margin-bottom:8px">
+<div>
+<label class="field-label" for="mqtt-port">端口</label><input type="number" inputmode="numeric" min="1" max="65535" id="mqtt-port" placeholder="端口" value="1883" style="flex:1">
+<label class="field-label" for="mqtt-user">MQTT 用户名（可选）</label><input type="text" id="mqtt-user" placeholder="用户名（可选）" style="flex:1">
+</div>
+<label class="field-label" for="mqtt-pass">MQTT 密码（可选）</label><input type="password" autocomplete="off" id="mqtt-pass" placeholder="密码（可选）" style="margin-bottom:8px">
+<label class="field-label" for="mqtt-topic">Topic 前缀</label><input type="text" id="mqtt-topic" placeholder="Topic 前缀" value="ir_ac" style="margin-bottom:10px">
+<button class="b b-pp b-fw" onclick="saveMqtt()">保存MQTT配置并重启</button>
+</div></div>
+</div><div id="settings-maintenance" hidden><div class="cd"><div class="cd-h">固件更新 (OTA)</div><div class="cd-b">
 <div class="ota-grid">
 <div class="ota-stat"><span class="ota-k">当前运行</span><span class="ota-v" id="ota-rom-wrap">ROM <span id="ota-rom">-</span></span></div>
 <div class="ota-stat"><span class="ota-k">准备写入</span><span class="ota-v" id="ota-target-wrap">ROM <span id="ota-target">-</span></span></div>
@@ -404,35 +407,60 @@ body{background:var(--bg);color:var(--text)}
 <ul class="ota-list">
 <li class="yes"><span>可上传</span><div id="ota-allow">Release 里的 firmware-ota-*.bin，或本地 flash_images/ota.bin</div></li>
 <li class="no"><span>不要传</span><div>combined.bin、rboot.bin、.pio/build/.../firmware.bin、旧版无 manifest 包</div></li>
-</ul>
+</ul><details><summary>分区与镜像说明</summary><div>设备只写入备用 ROM；镜像必须通过板型、DOUT、checksum 与 manifest/CRC 校验。上传进度到 100% 后仍需等待设备校验结果。</div></details>
 </div>
 <form method="POST" action="/update" enctype="multipart/form-data" id="ota-form">
 <div class="ota-file">
 <input type="file" name="firmware" id="ota-file" accept=".bin" style="font-size:14px;width:100%" required>
 <div class="ota-meta" id="ota-file-meta">未选择文件。选中文件后会先在浏览器里验头。</div>
 </div>
-<label for="ota-password">设备热点密码</label>
-<input type="password" id="ota-password" autocomplete="current-password" placeholder="未修改时为 12345678" required style="margin:8px 0">
+<label class="field-label" for="ota-password">本设备热点密码</label>
+<input type="password" id="ota-password" autocomplete="current-password" placeholder="请输入本设备热点密码" required style="margin:8px 0">
 <div class="ota-meta">用于升级认证，用户名固定为 admin。请填写本设备的热点密码，上传前会先验证。</div>
 <button type="submit" class="b b-or b-fw" id="ota-btn" disabled>选择 OTA 固件</button>
 </form>
 <div class="prog" id="ota-prog"><div class="prog-bar" id="ota-prog-bar"></div></div>
 <div class="prog-stat" id="ota-prog-stat"></div>
 <div id="ota-msg" class="ota-meta ota-wait"></div>
-</div></div></div>
+</div></div><div class="cd" id="logs-card"><div class="cd-h">实时日志</div><div class="cd-b">
+<p class="help">仅查看当前设备连接后的应用日志，不保存历史。断开、离开此页或关闭屏幕后停止接收。</p>
+<label for="logs-password" class="field-label">本设备热点密码</label>
+<input type="password" id="logs-password" autocomplete="off" placeholder="请输入本设备热点密码">
+<p class="help">用户名固定为 admin；请使用本设备热点密码，而非家庭 WiFi 密码。</p>
+<div class="log-actions"><button class="b b-bl" id="logs-start" onclick="startLogs()">开始查看</button><button class="b b-gy" id="logs-pause" onclick="stopLogs('已暂停；继续查看会从当前时刻开始')" disabled>暂停</button><button class="b b-gy" onclick="clearLogs()">清空视图</button></div>
+<div id="logs-status" class="log-status" role="status" aria-live="polite">未连接</div>
+<div id="logs-view" class="log-view" role="region" aria-label="实时日志内容" tabindex="0"></div>
+<label class="log-scroll"><input type="checkbox" id="logs-autoscroll" checked>自动滚动 · 最多显示 300 行</label>
+</div></div>
+<div class="cd"><div class="cd-h">浏览器遥控数据</div><div class="help" style="padding:0 16px">仅导入、导出或清除当前浏览器保存的遥控按钮和品牌，不包含设备网络配置。</div>
+<div class="it" onclick="exportAll()"><span>导出遥控数据</span><span class="arr"></span></div>
+<div class="it" onclick="importAll()"><span>导入遥控数据</span><span class="arr"></span></div>
+<div class="it" onclick="clearAll()"><span style="color:var(--red)">清除浏览器遥控数据</span><span class="arr"></span></div>
+
+</div>
+<div class="cd"><div class="cd-h">本机按键</div><div class="cd-b">
+<div style="font-size:13px;color:var(--text3);line-height:1.45">短按：格力制冷 26°C 一键开/关。长按 5 秒：恢复出厂设置。</div>
+</div></div>
+<div class="cd"><div class="cd-h">关于</div>
+<div class="it"><span>版本</span><span style="color:var(--gray)">v3.0.0</span></div>
+<div class="it"><span>MAC</span><span id="sys-mac" style="color:var(--gray)">--</span></div>
+<div class="it"><span>设备</span><span style="color:var(--gray)">IR Mini V105</span></div>
+<div class="it"><span>协议库</span><span style="color:var(--gray)">IRremoteESP8266</span></div>
+</div>
+<div class="cd"><div class="it" onclick="factoryReset()"><span style="color:var(--red)">恢复设备出厂设置</span><span class="arr"></span></div></div></div></div>
 <nav class="bar">
-<a class="active" onclick="go('ac')"><i>&#10052;&#65039;</i>空调</a>
-<a onclick="go('remote')"><i>&#127903;</i>遥控</a>
-<a onclick="go('devices')"><i>&#127968;</i>设备</a>
-<a onclick="go('learn')"><i>&#128225;</i>学习</a>
-<a onclick="go('settings')"><i>&#9881;</i>设置</a>
+<a class="active" data-page="ac" aria-current="page" href="#ac" onclick="go('ac');return false"><i>&#10052;&#65039;</i>空调</a>
+<a data-page="remote" href="#remote" onclick="go('remote');return false"><i>&#127903;</i>遥控</a>
+<a data-page="devices" href="#devices" onclick="go('devices');return false"><i>&#127968;</i>设备</a>
+<a data-page="settings" href="#settings" onclick="go('settings');return false"><i>&#9881;</i>设置</a>
 </nav>
 <script>
 var sigs=JSON.parse(localStorage.getItem('ir_sigs')||'[]');
 var hist=[],recording=false,latestRaw='',latestProto='',latestBits=0,pollTimer=null;
 var renameIdx=-1;
-var otaTargetRom='-',otaSupported=true,otaTargetFile='flash_images/ota.bin';
+var otaTargetRom='-',otaSupported=false,otaBusy=false,otaValidation=0,otaTargetFile='flash_images/ota.bin';
 fetch('/api/ota/status').then(function(r){return r.json()}).then(function(d){
+  if(!d.ok||(!Number.isInteger(d.current_rom)&&d.ota_supported!==false))throw new Error('bad_status');
   otaSupported=d.ota_supported!==false;
   if(!otaSupported){
     var rw=$('ota-rom-wrap'),tw=$('ota-target-wrap'),g=$('ota-guide-main'),al=$('ota-allow'),b=$('ota-btn'),inp=$('ota-file');
@@ -450,7 +478,7 @@ fetch('/api/ota/status').then(function(r){return r.json()}).then(function(d){
   otaTargetFile='flash_images/ota.bin';
   var tg=$('ota-target');if(tg)tg.textContent=otaTargetRom;
   var al=$('ota-allow');if(al)al.textContent='Release 里的 firmware-ota-*.bin，或本地 '+otaTargetFile+'（rom0/rom1 为兼容别名）';
-}).catch(function(){});
+}).catch(function(){otaSupported=false;otaSetReady(false);otaMsg('无法读取固件分区状态，请刷新页面重试。','ota-bad')});
 var otaFileOk=false;
 function otaSize(n){return n>1048576?(n/1048576).toFixed(2)+' MB':Math.ceil(n/1024)+' KB'}
 function otaMsg(t,cls){var m=$('ota-msg');if(m){m.textContent=t;m.className='ota-meta '+(cls||'ota-wait')}}
@@ -500,16 +528,19 @@ function otaManifestInfo(a,info){
   var actual=otaCrc32(a,o+16,4);if(actual!==crc)return{ok:false,err:'crc'};
   return{ok:true,target:target,version:ver||'dev',crc:crc};
 }
-function otaSetReady(ok){otaFileOk=ok;var b=$('ota-btn');if(b){b.disabled=!ok;b.textContent=ok?'校验通过，上传到备用 ROM '+otaTargetRom:'选择 OTA 固件'}}
+function otaSetReady(ok){otaFileOk=ok;var b=$('ota-btn');if(b){b.disabled=!ok||otaBusy;b.textContent=ok?'验证并上传到备用 ROM '+otaTargetRom:'选择 OTA 固件'}}
 function otaValidateFile(file,done){
+  if(otaBusy)return;
+  var validation=++otaValidation;
   otaSetReady(false);
   if(!otaSupported){otaMeta('Factory 版不支持 Web OTA。','ota-bad');otaMsg('请用 USB-TTL 直刷 factory 固件。','ota-bad');done&&done(false);return}
   if(!file){otaMeta('未选择文件。选中文件后会先在浏览器里验头。','ota-wait');otaMsg('请选择 firmware-ota-*.bin 或 '+otaTargetFile,'ota-bad');done&&done(false);return}
   otaMeta('已选择：'+file.name+'（'+otaSize(file.size)+'）','ota-wait');
   if(file.size>0xFE000){otaMsg('文件超过 OTA 分区大小。请选择 firmware-ota-*.bin，不要上传 combined.bin。','ota-bad');done&&done(false);return}
   var rd=new FileReader();
-  rd.onerror=function(){otaMsg('无法读取文件，请重新选择','ota-bad');done&&done(false)};
+  rd.onerror=function(){if(validation!==otaValidation)return;otaMsg('无法读取文件，请重新选择','ota-bad');done&&done(false)};
   rd.onload=function(){
+    if(validation!==otaValidation||otaBusy)return;
     var a=new Uint8Array(rd.result);
     var info=otaRbootInfo(a,0);
     if(info.ok){
@@ -557,17 +588,33 @@ function $(i){return document.getElementById(i)}
 function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},1500)}
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function jsq(v){return String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r/g,' ').replace(/\n/g,' ')}
-function go(p){
-document.querySelectorAll('.pg').forEach(function(e){e.classList.remove('active')});
-document.querySelectorAll('nav.bar a').forEach(function(e){e.classList.remove('active')});
-$('pg-'+p).classList.add('active');
-var t=['ac','remote','devices','learn','settings'];
-document.querySelectorAll('nav.bar a')[t.indexOf(p)].classList.add('active');
-if(p==='learn')startPoll();else stopPoll();
-if(p==='remote')renderRemote();
-if(p==='devices')startDevPoll();else stopDevPoll();
-if(p==='ac')loadAcTargets();
+var currentPage='ac',currentSettings='network';
+function resumePagePolls(){
+  if(document.hidden||otaBusy)return;
+  if(currentPage==='learn')startPoll();
+  if(currentPage==='devices')startDevPoll();
 }
+function suspendPagePolls(){stopPoll();stopDevPoll()}
+function go(p){
+  if(otaBusy){toast('固件更新中，请等待结果');return}
+  if(currentPage!==p)stopLogs('已断开：离开维护诊断');
+  suspendPagePolls();currentPage=p;
+  document.querySelectorAll('.pg').forEach(function(e){e.classList.remove('active')});
+  $('pg-'+p).classList.add('active');
+  document.querySelectorAll('nav.bar a').forEach(function(e){var active=e.dataset.page===(p==='learn'?'remote':p);e.classList.toggle('active',active);if(active)e.setAttribute('aria-current','page');else e.removeAttribute('aria-current')});
+  if(p==='remote')renderRemote();
+  if(p==='ac')loadAcTargets();
+  resumePagePolls();
+}
+function settingsPanel(panel){
+  if(otaBusy){toast('固件更新中，请等待结果');return}
+  if(currentSettings!==panel)stopLogs('已断开：离开维护诊断');
+  currentSettings=panel;
+  $('settings-network').hidden=panel!=='network';$('settings-maintenance').hidden=panel!=='maintenance';
+  document.querySelectorAll('[data-settings]').forEach(function(b){b.classList.toggle('active',b.dataset.settings===panel)});
+}
+document.addEventListener('visibilitychange',function(){if(document.hidden){suspendPagePolls();stopLogs('已断开：页面不可见')}else resumePagePolls()});
+window.addEventListener('pagehide',function(){suspendPagePolls();stopLogs('已断开：页面已关闭')});
 function segInit(id){
 var bs=$(id).querySelectorAll('button');
 bs.forEach(function(b){b.onclick=function(){bs.forEach(function(x){x.classList.remove('active')});b.classList.add('active');acCmd('On')}});
@@ -602,18 +649,21 @@ fetch('/api/hvac/state').then(function(r){return r.json()}).then(function(d){
   if(d.mode){document.querySelectorAll('#s-mode button').forEach(function(b){b.classList.toggle('active',b.dataset.v===d.mode)})}
   if(d.fan){document.querySelectorAll('#s-fan button').forEach(function(b){b.classList.toggle('active',b.dataset.v===d.fan)})}
 }).catch(function(){});
+var captureGeneration=0;
 function startPoll(){
-$('learn-st').textContent='监听中';
-if(pollTimer)return;
-pollTimer=setInterval(function(){
-fetch('/api/capture').then(function(r){return r.json()}).then(function(d){
-if(d.raw)onIR(d);
-}).catch(function(){});
-},500);
+  if(pollTimer||currentPage!=='learn'||document.hidden||otaBusy)return;
+  $('learn-st').textContent='监听中';var generation=++captureGeneration;
+  function capturePoll(){
+    if(generation!==captureGeneration||currentPage!=='learn'||document.hidden||otaBusy)return;
+    fetch('/api/capture').then(function(r){return r.json()}).then(function(d){
+      if(generation===captureGeneration&&d.raw&&currentPage==='learn'&&!document.hidden&&!otaBusy)onIR(d);
+    }).catch(function(){}).finally(function(){if(generation===captureGeneration&&currentPage==='learn'&&!document.hidden&&!otaBusy)pollTimer=setTimeout(capturePoll,500)});
+  }
+  pollTimer=setTimeout(capturePoll,500);
 }
 function stopPoll(){
-if(pollTimer){clearInterval(pollTimer);pollTimer=null}
-$('learn-st').textContent='已停止';
+  ++captureGeneration;clearTimeout(pollTimer);pollTimer=null;
+  $('learn-st').textContent='已停止';
 }
 function onIR(d){
 var raw=d.raw,proto=d.proto||'?',bits=d.bits||0;
@@ -670,7 +720,7 @@ el.innerHTML=h;
 function clearHist(){hist=[];renderHist()}
 function renderRemote(){
 var el=$('remote-devices');
-if(!sigs.length){el.innerHTML='<div class="empty">还没有保存的按钮<br>去「学习」捕获信号吧</div>';return}
+if(!sigs.length){el.innerHTML='<div class="empty">还没有保存的按钮<br>切换「学习信号」捕获并保存按钮</div>';return}
 var h='<div class="grid">';
 sigs.forEach(function(s,i){
 h+='<button class="grid-b" onclick="sendRaw(\''+
@@ -738,7 +788,7 @@ toast('\u2713 导入成功');renderRemote();
 };inp.click();
 }
 function clearAll(){
-if(!confirm('确定清除所有数据？'))return;
+if(!confirm('确定清除当前浏览器保存的遥控按钮和品牌？设备网络配置不会被清除。'))return;
 localStorage.removeItem('ir_sigs');localStorage.removeItem('ir_ac_v');
 sigs=[];renderRemote();toast('已清除');
 }
@@ -843,7 +893,6 @@ function factoryReset(){
   toast('恢复出厂中...');
   fetch('/api/factory/reset',{method:'POST'}).then(function(r){return r.json()}).then(function(d){toast(d.ok?'重启中...':'失败')}).catch(function(){toast('失败')});
 }
-var slavePollTimer=null;
 function loadSysInfo(){
   fetch('/api/system/info').then(function(r){return r.json()}).then(function(d){
     if(d.mac)$('sys-mac').textContent=d.mac;
@@ -854,8 +903,7 @@ function loadSysInfo(){
       });
     }
     updateDevModeHelp();
-    if(d.mode==='ap'){$('slaves-card').style.display='';$('devmode-card').style.display='';startSlavePoll()}
-    else{$('slaves-card').style.display='none';$('devmode-card').style.display='';stopSlavePoll()}
+    $('devmode-card').style.display='';
   }).catch(function(){});
 }
 loadSysInfo();
@@ -887,35 +935,22 @@ function saveForceMode(){
     else toast('失败');
   }).catch(function(){toast('失败')});
 }
-function startSlavePoll(){if(slavePollTimer)return;slavePollTimer=setInterval(loadSlaves,3000);loadSlaves()}
-function stopSlavePoll(){if(slavePollTimer){clearInterval(slavePollTimer);slavePollTimer=null}}
-function loadSlaves(){
-  fetch('/api/slaves').then(function(r){return r.json()}).then(function(d){
-    var el=$('slave-list');if(!el)return;
-    var h='';
-    if(d.slaves&&d.slaves.length>0){
-      d.slaves.forEach(function(s){h+='<div class="slave-row"><span class="slave-dot"></span><span class="slave-mac">'+esc(s.mac)+'</span><span class="slave-ip">'+esc(s.ip)+'</span></div>'})
-    }else{h='<div style="color:var(--gray);font-size:13px;padding:8px 0">暂无从机连接</div>'}
-    el.innerHTML=h;
-    var pb=$('pair-btn');
-    if(pb){
-      if(d.pairing){pb.textContent='配对中 ('+d.pairingLeft+'s)...';pb.classList.add('pair-pulse')}
-      else{pb.textContent='配对新设备';pb.classList.remove('pair-pulse')}
-    }
-  }).catch(function(){});
-}
 function togglePair(){
   fetch('/api/slaves').then(function(r){return r.json()}).then(function(d){
-    if(d.pairing){fetch('/api/pair/stop',{method:'POST'}).then(function(){toast('配对已停止');loadDevices();loadSlaves()})}
-    else{toast('配对已开启，给另一台设备上电或重启');fetch('/api/pair/start',{method:'POST'}).then(function(){loadDevices();loadSlaves()})}
+    if(d.pairing){fetch('/api/pair/stop',{method:'POST'}).then(function(){toast('配对已停止');loadDevices()})}
+    else{toast('配对已开启，给另一台设备上电或重启');fetch('/api/pair/start',{method:'POST'}).then(function(){loadDevices()})}
   });
 }
-var devPollTimer=null;
+var devPollTimer=null,devGeneration=0,devInFlight=false;
 var ICONS={'ac':'❄️','bed':'🛏️','book':'📚','tv':'📺','light':'💡','kitchen':'🍳','door':'🚪','star':'⭐'};
-function startDevPoll(){if(devPollTimer)return;devPollTimer=setInterval(loadDevices,3000);loadDevices()}
-function stopDevPoll(){if(devPollTimer){clearInterval(devPollTimer);devPollTimer=null}}
+function devPageActive(generation){return generation===devGeneration&&currentPage==='devices'&&!document.hidden&&!otaBusy}
+function startDevPoll(){if(devPollTimer||currentPage!=='devices'||document.hidden||otaBusy)return;loadDevices()}
+function stopDevPoll(){++devGeneration;clearTimeout(devPollTimer);devPollTimer=null;devInFlight=false}
 function loadDevices(){
-  fetch('/api/slaves').then(function(r){return r.json()}).then(function(d){
+  if(currentPage!=='devices'||document.hidden||otaBusy||devInFlight)return;
+  clearTimeout(devPollTimer);devPollTimer=null;devInFlight=true;var generation=devGeneration;
+  return fetch('/api/slaves').then(function(r){return r.json()}).then(function(d){
+    if(!devPageActive(generation))return;
     var el=$('dev-floor-list');if(!el)return;
     var floors={};
     d.slaves.forEach(function(s){
@@ -924,12 +959,16 @@ function loadDevices(){
       floors[fl].push(s);
     });
     var h='';
-    fetch('/api/system/info').then(function(r2){return r2.json()}).then(function(info){
+    return fetch('/api/system/info').then(function(r2){return r2.json()}).then(function(info){
+      if(!devPageActive(generation))return;
       h+='<div class="floor-h">'+(info.mode==='ap'?'本机（主机）':'当前设备')+'</div>';
       h+='<div class="dev-grid"><div class="dev-card master"><div class="dev-icon">'+(ICONS[info.deviceIcon||'ac']||'📡')+'</div>';
-      h+='<div class="dev-name">'+esc(info.deviceName||'主机')+'</div>';
+      h+='<div class="dev-name">'+esc(info.deviceName||'本机')+'</div>';
       h+='<div class="dev-sub">'+esc(info.apMac||info.mac||'')+'</div>';
-      h+='<div class="dev-status dev-online">主机</div></div></div>';
+      var role=info.mode==='ap'?'主机':info.mode==='slave'?'从机':'家庭网络';
+      h+='<div class="dev-status dev-online">'+role+'</div></div></div>';
+      $('dev-pair-btn').hidden=info.mode!=='ap';
+      $('dev-pair-help').textContent=info.mode==='ap'?'开启配对后，60 秒内给另一台设备上电或重启。':'配对仅适用于独立主机模式。';
       Object.keys(floors).forEach(function(fl){
         h+='<div class="floor-h">'+esc(fl)+'</div><div class="dev-grid">';
         floors[fl].forEach(function(s){
@@ -948,7 +987,7 @@ function loadDevices(){
       var pb=$('dev-pair-btn');
       if(pb){if(d.pairing){pb.textContent='配对中 ('+d.pairingLeft+'s)...';pb.classList.add('pair-pulse')}else{pb.textContent='配对新设备';pb.classList.remove('pair-pulse')}}
     });
-  }).catch(function(){});
+  }).catch(function(){}).finally(function(){if(generation===devGeneration){devInFlight=false;if(devPageActive(generation))devPollTimer=setTimeout(loadDevices,3000)}});
 }
 function loadAcTargets(){
   fetch('/api/slaves').then(function(r){return r.json()}).then(function(d){
@@ -1040,10 +1079,86 @@ function disconnectDev(){
   };
   document.body.appendChild(b);
 })();
+// Live logs exist only in memory for this visible maintenance view.
+var logsSession=0,logsCursor=0,logsAuth='',logsGeneration=0,logsTimer=null,logsController=null,logsConnecting=false,logsFailures=0;
+function logsStatus(message){$('logs-status').textContent=message}
+function logsRelease(session,authorization){
+  if(!session||!authorization)return;
+  fetch('/api/logs/stop',{method:'POST',cache:'no-store',keepalive:true,headers:{Authorization:authorization,'Content-Type':'application/x-www-form-urlencoded'},body:'session='+session}).catch(function(){});
+}
+function stopLogs(message){
+  var session=logsSession,authorization=logsAuth;
+  ++logsGeneration;clearTimeout(logsTimer);logsTimer=null;
+  if(logsController)logsController.abort();logsController=null;
+  logsSession=0;logsAuth='';logsConnecting=false;logsFailures=0;
+  $('logs-password').value='';$('logs-password').type='password';
+  var toggle=$('logs-password-toggle');if(toggle){toggle.textContent='显示';toggle.setAttribute('aria-pressed','false')}
+  $('logs-start').disabled=false;$('logs-start').textContent='开始查看';$('logs-pause').disabled=true;
+  if(message)logsStatus(message);
+  logsRelease(session,authorization);
+}
+function clearLogs(){$('logs-view').textContent=''}
+function appendLog(text){
+  var view=$('logs-view'),line=document.createElement('div');line.textContent=text;view.appendChild(line);
+  while(view.children.length>300)view.removeChild(view.firstChild);
+  if($('logs-autoscroll').checked)view.scrollTop=view.scrollHeight;
+}
+function logsFetch(url,options,generation){
+  var controller=new AbortController(),timedOut=false;logsController=controller;
+  var timeout=setTimeout(function(){timedOut=true;controller.abort()},3500);
+  options=options||{};options.signal=controller.signal;options.cache='no-store';
+  return fetch(url,options).then(function(r){
+    if(!r.ok){var e=new Error('http');e.status=r.status;throw e}
+    return r.json();
+  }).catch(function(e){if(timedOut)e.logTimeout=true;throw e}).finally(function(){clearTimeout(timeout);if(logsController===controller)logsController=null});
+}
+function logsError(error,generation){
+  if(generation!==logsGeneration)return;
+  var message=error.status===401||error.status===403?'认证失败：请输入本设备当前的热点密码':error.status===409?'会话失效：已超时、设备重启或被其他页面替换，请重新开始':error.status===503?'设备忙：固件更新期间停止日志，请稍后重新开始':error.logTimeout?'请求超时，请检查设备连接后重试':'连接失败，请检查设备连接后重试';
+  stopLogs(message);
+}
+function pollLogs(generation){
+  if(generation!==logsGeneration||!logsSession||document.hidden||otaBusy)return;
+  logsFetch('/api/logs?session='+logsSession+'&after='+logsCursor,{headers:{Authorization:logsAuth}},generation).then(function(d){
+    if(generation!==logsGeneration)return;
+    if(!d.ok||!Array.isArray(d.entries)||!Number.isInteger(d.next))throw new Error('bad_response');
+    if(d.dropped)appendLog('[提示] 设备缓冲已满，丢失 '+d.dropped+' 条日志');
+    d.entries.forEach(function(entry){if(Number.isInteger(entry.seq)&&((entry.seq-logsCursor)|0)>0){appendLog('['+(entry.uptime/1000).toFixed(3)+'s] '+String(entry.text));logsCursor=entry.seq}});
+    logsCursor=d.next;logsFailures=0;logsStatus('接收中 · 仅当前连接期间的日志');
+    logsTimer=setTimeout(function(){pollLogs(generation)},500);
+  }).catch(function(error){
+    if(generation!==logsGeneration)return;
+    if(error.status||++logsFailures>=3){logsError(error,generation);return}
+    logsStatus((error.logTimeout?'请求超时':'网络中断')+'，正在重试（'+logsFailures+'/3）');
+    logsTimer=setTimeout(function(){pollLogs(generation)},Math.min(2000,500*Math.pow(2,logsFailures-1)));
+  });
+}
+function startLogs(){
+  if(logsConnecting||logsSession)return;
+  if(currentPage!=='settings'||currentSettings!=='maintenance'||document.hidden||otaBusy)return;
+  var input=$('logs-password');if(!input.value){logsStatus('请输入本设备热点密码');input.focus();return}
+  logsAuth='Basic '+btoa(unescape(encodeURIComponent('admin:'+input.value)));input.value='';
+  var generation=++logsGeneration;logsConnecting=true;logsFailures=0;
+  $('logs-start').disabled=true;$('logs-pause').disabled=false;logsStatus('连接中...');
+  logsFetch('/api/logs/start',{method:'POST',headers:{Authorization:logsAuth}},generation).then(function(d){
+    if(generation!==logsGeneration)return;
+    if(!d.ok||!Number.isInteger(d.session)||!d.session||!Number.isInteger(d.cursor))throw new Error('bad_response');
+    logsSession=d.session;logsCursor=d.cursor;logsConnecting=false;logsStatus('接收中 · 从当前时刻开始');pollLogs(generation);
+  }).catch(function(error){logsError(error,generation)});
+}
+(function(){
+  document.querySelectorAll('input[type=password]').forEach(function(input){
+    var wrap=document.createElement('div');wrap.className='password-field';input.parentNode.insertBefore(wrap,input);wrap.appendChild(input);
+    var button=document.createElement('button');button.type='button';button.id=input.id+'-toggle';button.textContent='显示';button.setAttribute('aria-controls',input.id);button.setAttribute('aria-pressed','false');button.setAttribute('aria-label','显示或隐藏'+(document.querySelector('label[for="'+input.id+'"]').textContent));
+    button.onclick=function(){var show=input.type==='password';input.type=show?'text':'password';button.textContent=show?'隐藏':'显示';button.setAttribute('aria-pressed',String(show))};wrap.appendChild(button);
+  });
+})();
+
 (function(){
   var f=document.getElementById('ota-form');if(!f)return;
   f.addEventListener('submit',function(e){
     e.preventDefault();
+    if(otaBusy)return;
     var fi=document.getElementById('ota-file');
     if(!fi||!fi.files[0])return;
     if(!otaSupported||!otaFileOk){otaValidateFile(fi.files[0]);return}
@@ -1051,6 +1166,9 @@ function disconnectDev(){
     if(!password.value){password.focus();return}
     var authorization='Basic '+btoa(unescape(encodeURIComponent('admin:'+password.value)));
     var file=fi.files[0];
+    otaBusy=true;++otaValidation;fi.disabled=true;password.disabled=true;
+    suspendPagePolls();stopLogs('OTA 暂停：固件更新期间停止日志');
+    function finishOta(){authorization='';password.value='';otaBusy=false;fi.disabled=false;password.disabled=false;btn.disabled=!otaFileOk;btn.textContent='验证并上传固件';resumePagePolls()}
     var prog=document.getElementById('ota-prog'),bar=document.getElementById('ota-prog-bar');
     var stat=document.getElementById('ota-prog-stat'),btn=document.getElementById('ota-btn');
     btn.disabled=true;btn.textContent='验证密码中...';
@@ -1065,26 +1183,26 @@ function disconnectDev(){
     xhr.onload=function(){
       if(xhr.status===200){
         stat.textContent='\u4e0a\u4f20\u5b8c\u6210\uff0c\u8bbe\u5907\u91cd\u542f\u4e2d...';
-        bar.style.width='100%';setTimeout(function(){location.reload()},10000);
+        authorization='';bar.style.width='100%';setTimeout(function(){location.reload()},10000);
       }else{
         bar.className='prog-bar err';
-        stat.textContent=xhr.status===401?'认证失败，请检查设备热点密码后重试':'失败: '+(xhr.responseText||'未知错误').substring(0,80);
-        btn.disabled=false;btn.textContent='\u9009\u62e9 OTA \u56fa\u4ef6';
+        stat.textContent=xhr.status===401||xhr.status===403?'认证失败，请检查设备热点密码后重试':'失败: '+(xhr.responseText||'未知错误').substring(0,80);
+        finishOta();
       }
     };
     xhr.onerror=function(){
       bar.className='prog-bar err';stat.textContent='\u7f51\u7edc\u9519\u8bef';
-      btn.disabled=false;btn.textContent='\u9009\u62e9 OTA \u56fa\u4ef6';
+      finishOta();
     };
     xhr.ontimeout=function(){
       bar.className='prog-bar err';stat.textContent='上传或校验超时，请检查设备串口日志和 WiFi 连接';
-      btn.disabled=false;btn.textContent='选择 OTA 固件';
+      finishOta();
     };
     var fd=new FormData();fd.append('firmware',file);
     var auth=new XMLHttpRequest();
     function authFailed(message){
       bar.className='prog-bar err';stat.textContent=message;
-      btn.disabled=false;btn.textContent='验证并上传固件';
+      finishOta();
     }
     auth.timeout=10000;
     auth.onload=function(){

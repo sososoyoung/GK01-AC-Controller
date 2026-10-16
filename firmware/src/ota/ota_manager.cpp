@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "ota/ota_manager.h"
 #include "config/config_store.h"
 #include <LittleFS.h>
@@ -258,7 +259,7 @@ bool imageHeaderValid(const uint8_t* data, size_t len, char* reason, size_t reas
 
 void OtaManager::begin() {
     loadState();
-    Serial.println(F("[MODULE] ota_manager real impl loaded"));
+    appLog.println(F("[MODULE] ota_manager real impl loaded"));
 }
 
 void OtaManager::loadState() {
@@ -290,7 +291,7 @@ void OtaManager::reject(const char* reason) {
     writeOk_ = false;
     strncpy(rejectReason_, reason, sizeof(rejectReason_) - 1);
     rejectReason_[sizeof(rejectReason_) - 1] = '\0';
-    Serial.printf("[OTA] Reject: %s\n", rejectReason_);
+    appLog.printf("[OTA] Reject: %s\n", rejectReason_);
 }
 
 bool OtaManager::isUploading() const {
@@ -321,7 +322,7 @@ void OtaManager::onUploadStart() {
         reject("invalid OTA target partition");
         return;
     }
-    Serial.printf("[OTA] start ROM %u at 0x%06X\n", target, targetAddr_);
+    appLog.printf("[OTA] start ROM %u at 0x%06X\n", target, targetAddr_);
 #else
     reject("rboot OTA disabled in factory firmware");
 #endif
@@ -361,7 +362,7 @@ bool OtaManager::onUploadChunk(const uint8_t* data, size_t len) {
             uploadSize_ += accLen_;
             accLen_ = 0;
             if ((uploadSize_ % (64 * 1024)) == 0) {
-                Serial.printf("[OTA] written %u bytes\n", (unsigned)uploadSize_);
+                appLog.printf("[OTA] written %u bytes\n", (unsigned)uploadSize_);
             }
         }
     }
@@ -391,7 +392,7 @@ void OtaManager::onUploadEnd() {
         uploadSize_ += accLen_;
         accLen_ = 0;
     }
-    Serial.printf("[OTA] upload done: %u bytes, %s\n",
+    appLog.printf("[OTA] upload done: %u bytes, %s\n",
                   (unsigned)uploadSize_, writeOk_ ? "OK" : "FAILED");
 #endif
 }
@@ -410,7 +411,7 @@ bool OtaManager::rollbackIfPending(const char* reason) {
 #endif
     loadState();
     if (!state_.pending) return false;
-    Serial.printf("[OTA] Rollback: %s\n", reason);
+    appLog.printf("[OTA] Rollback: %s\n", reason);
     uint8_t prev = state_.previous_rom;
     clearState();
     if (ensureFSMounted(false)) LittleFS.remove(FS_OTA_BOOTS);
@@ -432,7 +433,7 @@ void OtaManager::checkOnBoot(bool wifiConnected, bool apStarted) {
     loadState();
     if (!state_.pending) return;
 
-    Serial.println(F("[OTA] pending update detected, health check..."));
+    appLog.println(F("[OTA] pending update detected, health check..."));
 
     struct rst_info *rst = ESP.getResetInfoPtr();
     bool isCrash = (rst && (rst->reason == REASON_WDT_RST ||
@@ -446,13 +447,13 @@ void OtaManager::checkOnBoot(bool wifiConnected, bool apStarted) {
             boots++;
             bf = LittleFS.open(FS_OTA_BOOTS, "w");
             if (bf) { bf.println(boots); bf.close(); }
-            Serial.printf("[OTA] crash boot #%d (max %d)\n", boots, OTA_MAX_CRASH_BOOTS);
+            appLog.printf("[OTA] crash boot #%d (max %d)\n", boots, OTA_MAX_CRASH_BOOTS);
         }
     }
 
     if (boots > OTA_MAX_CRASH_BOOTS) {
         uint8_t prev = state_.previous_rom;
-        Serial.printf("[OTA] too many crash boots, rollback to ROM %d\n", prev);
+        appLog.printf("[OTA] too many crash boots, rollback to ROM %d\n", prev);
         clearState();
         if (ensureFSMounted(false)) LittleFS.remove(FS_OTA_BOOTS);
 #if IRAC_RBOOT_OTA
@@ -464,7 +465,7 @@ void OtaManager::checkOnBoot(bool wifiConnected, bool apStarted) {
     }
 
     if (ESP.getFreeHeap() < 5000) {
-        Serial.printf("[OTA] critical low heap: %u, rollback!\n", (unsigned)ESP.getFreeHeap());
+        appLog.printf("[OTA] critical low heap: %u, rollback!\n", (unsigned)ESP.getFreeHeap());
         uint8_t prev = state_.previous_rom;
         clearState();
         if (ensureFSMounted(false)) LittleFS.remove(FS_OTA_BOOTS);
@@ -479,7 +480,7 @@ void OtaManager::checkOnBoot(bool wifiConnected, bool apStarted) {
     bool healthy = wifiConnected || apStarted;
     if (!healthy) {
         uint8_t prev = state_.previous_rom;
-        Serial.println(F("[OTA] health check failed, rollback!"));
+        appLog.println(F("[OTA] health check failed, rollback!"));
         clearState();
         if (ensureFSMounted(false)) LittleFS.remove(FS_OTA_BOOTS);
 #if IRAC_RBOOT_OTA
@@ -496,14 +497,14 @@ void OtaManager::checkOnBoot(bool wifiConnected, bool apStarted) {
 void OtaManager::markConfirmReady() {
     if (!state_.pending) return;
     confirmAt_ = millis() + OTA_CONFIRM_DELAY_MS;
-    Serial.printf("[OTA] basic check passed, will confirm after %us stable\n",
+    appLog.printf("[OTA] basic check passed, will confirm after %us stable\n",
                   (unsigned)(OTA_CONFIRM_DELAY_MS / 1000));
 }
 
 void OtaManager::confirmIfReady() {
     if (confirmAt_ == 0 || !state_.pending) return;
     if ((long)(millis() - confirmAt_) < 0) return;
-    Serial.println(F("[OTA] stable run reached, update confirmed"));
+    appLog.println(F("[OTA] stable run reached, update confirmed"));
     clearState();
     if (ensureFSMounted(false)) LittleFS.remove(FS_OTA_BOOTS);
     confirmAt_ = 0;
@@ -524,7 +525,7 @@ void OtaManager::switchToTargetRom() {
         }
     }
     uint8_t target = rboot_get_target_rom();
-    Serial.printf("[OTA] switching to ROM %u, rebooting\n", target);
+    appLog.printf("[OTA] switching to ROM %u, rebooting\n", target);
     rboot_set_current_rom(target);
 #endif
 }

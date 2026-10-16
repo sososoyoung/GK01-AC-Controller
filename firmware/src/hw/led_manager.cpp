@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "hw/led_manager.h"
 
 LedManager leds;
@@ -9,7 +10,7 @@ bool          ledBlinking_ = false;
 
 void LedManager::begin() {
     setAll(false, false, false);
-    Serial.println(F("[MODULE] led_manager real impl loaded"));
+    appLog.println(F("[MODULE] led_manager real impl loaded"));
 }
 
 void LedManager::setBlue(bool on)   { on ? ledOn(PIN_LED_BLUE)   : ledOff(PIN_LED_BLUE); }

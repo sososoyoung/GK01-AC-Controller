@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "hw/button_manager.h"
 #include "core/pins.h"
 
@@ -10,7 +11,7 @@ void ButtonManager::begin(ShortPressCallback onShort, LongPressCallback onLong) 
     btnLongHandled_ = false;
     btnPressStart_  = 0;
     lastCheckMs_    = 0;
-    Serial.println(F("[MODULE] button_manager real impl loaded"));
+    appLog.println(F("[MODULE] button_manager real impl loaded"));
 }
 
 void ButtonManager::loop() {
@@ -30,12 +31,12 @@ void ButtonManager::loop() {
             btnPressed_     = true;
             btnLongHandled_ = false;
             btnPressStart_  = millis();
-            Serial.println(F("[BTN] Pressed"));
+            appLog.println(F("[BTN] Pressed"));
         } else {
             unsigned long elapsed = millis() - btnPressStart_;
             if (elapsed >= BTN_LONG_PRESS_MS && !btnLongHandled_) {
                 btnLongHandled_ = true;
-                Serial.println(F("[BTN] Long press → onLong callback"));
+                appLog.println(F("[BTN] Long press → onLong callback"));
                 if (onLong_) onLong_();
             } else if (elapsed >= 2000 && !btnLongHandled_) {
                 if ((millis() / 200) % 2 == 0) ledOn(PIN_LED_YELLOW);
@@ -49,7 +50,7 @@ void ButtonManager::loop() {
                 elapsed <= BTN_SHORT_PRESS_MAX_MS) {
                 if (onShort_) onShort_();
             } else if (!btnLongHandled_ && elapsed > BTN_SHORT_PRESS_MAX_MS) {
-                Serial.println(F("[BTN] Release ignored (hold too long for shortcut)"));
+                appLog.println(F("[BTN] Release ignored (hold too long for shortcut)"));
             }
         }
         btnPressed_     = false;

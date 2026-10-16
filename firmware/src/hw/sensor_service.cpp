@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "hw/sensor_service.h"
 
 SensorService sensors;
@@ -16,11 +17,11 @@ void SensorService::begin() {
         dallas_.requestTemperatures();
         convPending_ = true;
         convReqMs_   = millis();
-        Serial.printf("[SENSOR] DS18B20 found, count=%u\n", dallas_.getDeviceCount());
+        appLog.printf("[SENSOR] DS18B20 found, count=%u\n", dallas_.getDeviceCount());
     } else {
-        Serial.println(F("[SENSOR] No DS18B20 detected"));
+        appLog.println(F("[SENSOR] No DS18B20 detected"));
     }
-    Serial.println(F("[MODULE] sensor_service real impl loaded"));
+    appLog.println(F("[MODULE] sensor_service real impl loaded"));
 }
 
 void SensorService::loop() {

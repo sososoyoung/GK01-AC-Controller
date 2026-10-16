@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "modes/ap_master_mode.h"
 #include "app/app_context.h"
 #include "net/udp_mesh.h"
@@ -9,13 +10,13 @@
 #include "ota/ota_manager.h"
 
 void ApMasterMode::onEnter() {
-    Serial.println(F("[AP_MASTER] onEnter"));
+    appLog.println(F("[AP_MASTER] onEnter"));
 
     leds.setAll(false, false, true);
 
     bool apStarted = network.beginAP(getApSsid(), getApPass());
     if (!apStarted) {
-        Serial.println(F("[AP_MASTER] start failed"));
+        appLog.println(F("[AP_MASTER] start failed"));
     }
 
     if (apStarted) {
@@ -32,7 +33,7 @@ void ApMasterMode::onEnter() {
             leds.setBlue(false); delay(100);
         }
         leds.setAll(false, false, true);
-        Serial.println(F("=== Master Ready ==="));
+        appLog.println(F("=== Master Ready ==="));
     }
 
     ota.checkOnBoot(false, apStarted);

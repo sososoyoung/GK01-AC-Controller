@@ -107,7 +107,10 @@ String jsonEscape(const String& s) {
         char c = s.charAt(i);
         if (c == '"') out += "\\\"";
         else if (c == '\\') out += "\\\\";
-        else out += c;
+        else if ((uint8_t)c < 0x20) {
+            static const char hex[] = "0123456789abcdef";
+            out += "\\u00"; out += hex[((uint8_t)c) >> 4]; out += hex[((uint8_t)c) & 15];
+        } else out += c;
     }
     return out;
 }

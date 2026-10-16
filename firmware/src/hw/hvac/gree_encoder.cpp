@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "hw/hvac/gree_encoder.h"
 #include "hw/ir_service.h"
 #include <string.h>
@@ -98,7 +99,7 @@ bool GreeEncoder::send(const hvac::Command& cmd) {
     sendFrame(s, frameB, 20000);
     ir.enableRx();
 
-    Serial.printf("[GREE] Pwr:%s Mode:%s T:%d Fan:%s\n",
+    appLog.printf("[GREE] Pwr:%s Mode:%s T:%d Fan:%s\n",
                   cmd.power ? "ON" : "OFF", cmd.mode.c_str(), temp, cmd.fan.c_str());
     return true;
 }

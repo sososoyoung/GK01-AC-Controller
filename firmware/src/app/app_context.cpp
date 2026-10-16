@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "app/app_context.h"
 #include "app/mode_factory.h"
 #include "core/string_utils.h"
@@ -17,7 +18,7 @@ void AppContext::begin() {
     chipId_  = String(ESP.getChipId(), HEX);
     mac_     = WiFi.macAddress();
     slaveId_ = str::slaveIdFromMac(mac_);
-    Serial.printf("[CTX] chipId=%s mac=%s slaveId=%s\n",
+    appLog.printf("[CTX] chipId=%s mac=%s slaveId=%s\n",
                   chipId_.c_str(), mac_.c_str(), slaveId_.c_str());
 
     configStore.begin(true);   // 裸分区（全擦后）在启动时自愈格式化，别等保存时才发现
@@ -33,6 +34,7 @@ void AppContext::begin() {
 }
 
 void AppContext::loop() {
+    appLog.tick();
     leds.loop();
     button.loop();
     pairing.loop();
@@ -52,15 +54,15 @@ void AppContext::changeMode(DeviceModeId id) {
     auto owned = createMode(id);
     mode = owned.release();
     if (mode) {
-        Serial.printf("[CTX] enter mode: %s\n", mode->name());
+        appLog.printf("[CTX] enter mode: %s\n", mode->name());
         mode->onEnter();
     } else {
-        Serial.println(F("[CTX] createMode returned nullptr"));
+        appLog.println(F("[CTX] createMode returned nullptr"));
     }
 }
 
 void AppContext::reboot(uint32_t delayMs) {
-    Serial.printf("[CTX] reboot in %u ms\n", (unsigned)delayMs);
+    appLog.printf("[CTX] reboot in %u ms\n", (unsigned)delayMs);
     delay(delayMs);
     ESP.restart();
 }
@@ -70,24 +72,24 @@ DeviceModeId AppContext::decideBootMode() {
     bool hasSTA = strlen(cfg.sta_ssid) > 0;
 
     if (cfg.force_mode == FORCE_MODE_AP) {
-        Serial.println(F("[BOOT] force_mode=AP"));
+        appLog.println(F("[BOOT] force_mode=AP"));
         return DeviceModeId::ApMaster;
     }
 
     if (cfg.force_mode == FORCE_MODE_HOME) {
         if (!hasSTA) {
-            Serial.println(F("[BOOT] force_mode=HOME without STA, revert AUTO"));
+            appLog.println(F("[BOOT] force_mode=HOME without STA, revert AUTO"));
             cfg.force_mode = FORCE_MODE_AUTO;
             configStore.save();
             return DeviceModeId::ApMaster;
         }
-        Serial.println(F("[BOOT] force_mode=HOME, connecting STA"));
+        appLog.println(F("[BOOT] force_mode=HOME, connecting STA"));
         leds.setAll(true, false, false);
         if (network.connectSTABlocking(cfg.sta_ssid, cfg.sta_pass)) {
             configStore.scheduleSave();   // 清空 last_sta_error 需落盘
             return DeviceModeId::StaHome;
         }
-        Serial.println(F("[BOOT] HOME STA failed"));
+        appLog.println(F("[BOOT] HOME STA failed"));
         configStore.save();               // 持久化失败原因
         if (ota.rollbackIfPending("force_mode=home, STA failed")) {
             return DeviceModeId::ApMaster;
@@ -99,7 +101,7 @@ DeviceModeId AppContext::decideBootMode() {
     }
 
     if (cfg.force_mode == FORCE_MODE_SLAVE) {
-        Serial.println(F("[BOOT] force_mode=SLAVE, scanning for master"));
+        appLog.println(F("[BOOT] force_mode=SLAVE, scanning for master"));
         leds.setAll(false, false, true);
         String foundSsid;
         uint8_t bssid[6] = {0};
@@ -117,9 +119,9 @@ DeviceModeId AppContext::decideBootMode() {
             if (WiFi.status() == WL_CONNECTED) {
                 return DeviceModeId::StaSlave;
             }
-            Serial.println(F("[BOOT] SLAVE connect failed"));
+            appLog.println(F("[BOOT] SLAVE connect failed"));
         } else {
-            Serial.println(F("[BOOT] SLAVE no master found"));
+            appLog.println(F("[BOOT] SLAVE no master found"));
         }
         if (ota.rollbackIfPending("force_mode=slave, no master")) {
             return DeviceModeId::ApMaster;
@@ -131,17 +133,17 @@ DeviceModeId AppContext::decideBootMode() {
     }
 
     if (hasSTA) {
-        Serial.println(F("[BOOT] AUTO, trying STA Home"));
+        appLog.println(F("[BOOT] AUTO, trying STA Home"));
         leds.setAll(true, false, false);
         if (network.connectSTABlocking(cfg.sta_ssid, cfg.sta_pass)) {
             configStore.scheduleSave();   // 清空 last_sta_error 需落盘
             return DeviceModeId::StaHome;
         }
-        Serial.println(F("[BOOT] STA failed, trying slave scan"));
+        appLog.println(F("[BOOT] STA failed, trying slave scan"));
         configStore.scheduleSave();       // 持久化失败原因，AP 配网页显示
     }
 
-    Serial.println(F("[BOOT] scanning for master"));
+    appLog.println(F("[BOOT] scanning for master"));
     leds.setAll(false, false, true);
     String foundSsid;
     uint8_t bssid[6] = {0};
@@ -149,7 +151,7 @@ DeviceModeId AppContext::decideBootMode() {
     if (network.scanForMaster(getApSsid(), foundSsid, bssid, channel)) {
         WiFi.mode(WIFI_STA);
         WiFi.begin(foundSsid.c_str(), getApPass(), channel, bssid);
-        Serial.printf("[BOOT] slave connecting to %s...\n", foundSsid.c_str());
+        appLog.printf("[BOOT] slave connecting to %s...\n", foundSsid.c_str());
 
         int attempts = 0;
         while (WiFi.status() != WL_CONNECTED && attempts < 40) {
@@ -160,13 +162,13 @@ DeviceModeId AppContext::decideBootMode() {
         }
 
         if (WiFi.status() == WL_CONNECTED) {
-            Serial.printf("[BOOT] slave connected, IP=%s\n", WiFi.localIP().toString().c_str());
+            appLog.printf("[BOOT] slave connected, IP=%s\n", WiFi.localIP().toString().c_str());
             return DeviceModeId::StaSlave;
         }
-        Serial.println(F("[BOOT] slave connect failed"));
+        appLog.println(F("[BOOT] slave connect failed"));
     }
 
-    Serial.println(F("[BOOT] fallback to AP Master"));
+    appLog.println(F("[BOOT] fallback to AP Master"));
     return DeviceModeId::ApMaster;
 }
 
@@ -253,7 +255,7 @@ void SlaveRegistry::load() {
         slot++;
     }
     f.close();
-    Serial.printf("[SLAVES] loaded %u paired\n", (unsigned)slot);
+    appLog.printf("[SLAVES] loaded %u paired\n", (unsigned)slot);
 }
 
 void SlaveRegistry::save() {
@@ -261,7 +263,7 @@ void SlaveRegistry::save() {
 
     File f = LittleFS.open("/slaves.tmp", "w");
     if (!f) {
-        Serial.println(F("[SLAVES] save failed"));
+        appLog.println(F("[SLAVES] save failed"));
         return;
     }
     for (size_t i = 0; i < CAPACITY; i++) {
@@ -276,17 +278,17 @@ void SlaveRegistry::save() {
     LittleFS.remove(FS_SLAVES_BAK);
     bool hadOld = LittleFS.exists(FS_SLAVES_TXT);
     if (hadOld && !LittleFS.rename(FS_SLAVES_TXT, FS_SLAVES_BAK)) {
-        Serial.println(F("[SLAVES] backup rename failed"));
+        appLog.println(F("[SLAVES] backup rename failed"));
         LittleFS.remove("/slaves.tmp");
         return;
     }
     if (!LittleFS.rename("/slaves.tmp", FS_SLAVES_TXT)) {
-        Serial.println(F("[SLAVES] commit rename failed"));
+        appLog.println(F("[SLAVES] commit rename failed"));
         if (hadOld) LittleFS.rename(FS_SLAVES_BAK, FS_SLAVES_TXT);
         return;
     }
     if (hadOld) LittleFS.remove(FS_SLAVES_BAK);
-    Serial.println(F("[SLAVES] saved"));
+    appLog.println(F("[SLAVES] saved"));
 }
 
 void SlaveRegistry::clear() {
@@ -323,7 +325,7 @@ void SlaveRegistry::pruneOffline() {
     for (size_t i = 0; i < CAPACITY; i++) {
         if (slaves_[i].mac[0] != '\0' && slaves_[i].lastSeen != 0 &&
             (uint32_t)(now - slaves_[i].lastSeen) >= SLAVE_OFFLINE_TIMEOUT_MS) {
-            Serial.printf("[SLAVES] prune offline %s\n", slaves_[i].mac);
+            appLog.printf("[SLAVES] prune offline %s\n", slaves_[i].mac);
             slaves_[i] = SlaveInfo{};
         }
     }
@@ -355,17 +357,17 @@ uint32_t PairingWindow::remainingMs() const {
 void PairingWindow::start() {
     active_ = true;
     until_  = millis() + PAIRING_DURATION_MS;
-    Serial.println(F("[PAIR] window opened"));
+    appLog.println(F("[PAIR] window opened"));
 }
 
 void PairingWindow::stop() {
     active_ = false;
-    Serial.println(F("[PAIR] window closed"));
+    appLog.println(F("[PAIR] window closed"));
 }
 
 void PairingWindow::loop() {
     if (active_ && (long)(millis() - until_) >= 0) {
         active_ = false;
-        Serial.println(F("[PAIR] window expired"));
+        appLog.println(F("[PAIR] window expired"));
     }
 }

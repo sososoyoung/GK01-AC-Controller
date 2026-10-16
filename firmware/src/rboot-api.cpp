@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "rboot.h"
 
 static bool rboot_config_valid(const rboot_config& conf) {
@@ -30,7 +31,7 @@ rboot_config rboot_get_config() {
     } else if (conf.roms[0] != ROM0_ADDRESS || conf.roms[1] != ROM1_ADDRESS) {
         // rboot default_config 生成了与我们布局不同的地址（如 4MB flash
         // 默认 ROM1=0x202000，会覆盖 LittleFS），修正为我们实际的地址。
-        Serial.printf("[RBOOT] Fixing ROM addresses: %u/%u -> %u/%u\n",
+        appLog.printf("[RBOOT] Fixing ROM addresses: %u/%u -> %u/%u\n",
                       conf.roms[0], conf.roms[1], ROM0_ADDRESS, ROM1_ADDRESS);
         conf.roms[0] = ROM0_ADDRESS;
         conf.roms[1] = ROM1_ADDRESS;
@@ -92,7 +93,7 @@ bool rboot_write_flash(uint32_t start_addr, const uint8_t* data, size_t len) {
     const uint32_t end = target + 0xFE000;
     if (start_addr < target || start_addr >= end || len > end - start_addr ||
         (start_addr % SPI_FLASH_SEC_SIZE) != 0) {
-        Serial.println(F("[RBOOT] refused write outside inactive slot or unaligned sector"));
+        appLog.println(F("[RBOOT] refused write outside inactive slot or unaligned sector"));
         return false;
     }
 
@@ -103,7 +104,7 @@ bool rboot_write_flash(uint32_t start_addr, const uint8_t* data, size_t len) {
     for (uint32_t sec = sector_start; sec < sector_end; sec += SPI_FLASH_SEC_SIZE) {
         uint32_t sec_num = sec / SPI_FLASH_SEC_SIZE;
         if (spi_flash_erase_sector(sec_num) != SPI_FLASH_RESULT_OK) {
-            Serial.printf("[RBOOT] erase sector %u failed\n", sec_num);
+            appLog.printf("[RBOOT] erase sector %u failed\n", sec_num);
             return false;
         }
         yield();
@@ -139,7 +140,7 @@ bool rboot_write_flash(uint32_t start_addr, const uint8_t* data, size_t len) {
 
         if (needs_free) free(buf);
         if (!ok) {
-            Serial.printf("[RBOOT] write at 0x%06X failed\n", addr);
+            appLog.printf("[RBOOT] write at 0x%06X failed\n", addr);
             return false;
         }
 

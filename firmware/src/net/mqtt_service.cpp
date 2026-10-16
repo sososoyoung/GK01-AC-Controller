@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "net/mqtt_service.h"
 #include "config/config_store.h"
 #include "app/app_context.h"
@@ -18,7 +19,7 @@ void onMessage(char* topic, byte* payload, unsigned int length) {
     pbuf[copyLen] = '\0';
     String t = String(topic);
     String p = String(pbuf);
-    Serial.printf("[MQTT] %s -> %s\n", t.c_str(), p.c_str());
+    appLog.printf("[MQTT] command received bytes=%u\n", length);
 
     const String& base = self->topicBase();
     String vendor = ctx.hvacState.vendor.length() > 0 ? ctx.hvacState.vendor
@@ -49,11 +50,17 @@ void onMessage(char* topic, byte* payload, unsigned int length) {
     } else if (t == base + "/fan/set") {
         c.power = ctx.hvacState.power;
         if (p.length() > 0) { p[0] = toupper(p[0]); c.fan = p; }
-        ok = hvacRegistry.send(c);
+        // Only protocol fan values are accepted; do not forward arbitrary
+        // MQTT input into encoder diagnostics or persisted HVAC state.
+        if (length < sizeof(pbuf) && (c.fan == "Auto" || c.fan == "Low" ||
+            c.fan == "Medium" || c.fan == "High" || c.fan == "Highest" || c.fan == "Max")) {
+            ok = hvacRegistry.send(c);
+        } else sendCmd = false;
     } else {
         sendCmd = false;
     }
 
+    appLog.printf("[MQTT] command %s\n", sendCmd ? (ok ? "applied" : "failed") : "ignored");
     if (sendCmd && ok) {
         ctx.hvacState.applyFrom(c);
         ctx.hvacState.persistTo(configStore.cfg);
@@ -70,7 +77,7 @@ void MqttService::begin() {
     mqtt_.setCallback(onMessage);
     enabled_ = strlen(configStore.cfg.mqtt_host) > 0;
     topicBase_ = String(configStore.cfg.mqtt_topic);
-    Serial.println(F("[MODULE] mqtt_service real impl loaded"));
+    appLog.println(F("[MODULE] mqtt_service real impl loaded"));
 }
 
 bool MqttService::connect() {
@@ -89,7 +96,7 @@ bool MqttService::connect() {
     }
 
     if (ok) {
-        Serial.println(F("[MQTT] Connected"));
+        appLog.println(F("[MQTT] Connected"));
         mqtt_.subscribe((topicBase_ + "/mode/set").c_str());
         mqtt_.subscribe((topicBase_ + "/temperature/set").c_str());
         mqtt_.subscribe((topicBase_ + "/fan/set").c_str());
@@ -97,7 +104,7 @@ bool MqttService::connect() {
         publishState();
         return true;
     }
-    Serial.printf("[MQTT] Failed, rc=%d\n", mqtt_.state());
+    appLog.printf("[MQTT] Failed, rc=%d\n", mqtt_.state());
     return false;
 }
 

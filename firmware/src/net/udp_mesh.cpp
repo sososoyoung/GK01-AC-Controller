@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "net/udp_mesh.h"
 #include "config/config_store.h"
 #include "app/app_context.h"
@@ -16,7 +17,7 @@ void slaveExecRaw(const String& data) {
     if (len == 0) return;
     ir.sendRaw(buf, len);
     leds.flashRed(30);
-    Serial.printf("[SLAVE] RAW len=%d\n", len);
+    appLog.printf("[SLAVE] RAW len=%d\n", len);
 }
 
 void slaveExecHvac(const String& data) {
@@ -49,7 +50,7 @@ void slaveExecHvac(const String& data) {
     ctx.hvacState.applyFrom(c);
     ctx.hvacState.persistTo(configStore.cfg);
     configStore.scheduleSave();
-    Serial.printf("[SLAVE] %s %s %dC\n", vendor.c_str(), power ? "ON" : "OFF", temp);
+    appLog.printf("[SLAVE] %s %s %dC\n", vendor.c_str(), power ? "ON" : "OFF", temp);
 }
 
 void handleSlaveConfig(const String& cmd, const IPAddress& masterIp) {
@@ -84,7 +85,7 @@ void handleSlaveConfig(const String& cmd, const IPAddress& masterIp) {
     }
 
     udp.sendTo(masterIp, ack.c_str());
-    Serial.printf("[SLAVE] CONFIG %s → %s\n", body.c_str(), ack.substring(ack.lastIndexOf(':') + 1).c_str());
+    appLog.printf("[SLAVE] CONFIG result=%s\n", ack.substring(ack.lastIndexOf(':') + 1).c_str());
 
     if (doDisconnect) {
         delay(100);
@@ -109,7 +110,7 @@ void handleMasterHello(const String& msg, const IPAddress& remoteIp) {
     String mac = msg.substring(HDR_LEN, HDR_LEN + MAC_LEN);
     mac.trim();
     if (!str::isValidMacString(mac)) {
-        Serial.printf("[MASTER] bad HELLO: %s\n", msg.substring(0, 80).c_str());
+        appLog.println(F("[MASTER] rejected invalid HELLO"));
         return;
     }
 
@@ -140,7 +141,7 @@ void handleMasterHello(const String& msg, const IPAddress& remoteIp) {
         slot = ctx.slaves.findFree();
     }
     if (slot < 0) {
-        Serial.printf("[MASTER] ignoring unpaired slave %s\n", mac.c_str());
+        appLog.printf("[MASTER] ignoring unpaired slave %s\n", mac.c_str());
         return;
     }
 
@@ -160,7 +161,7 @@ void handleMasterHello(const String& msg, const IPAddress& remoteIp) {
 
 void UdpMesh::beginMaster() {
     udp_.begin(UDP_PORT);
-    Serial.println(F("[MODULE] udp_mesh master real impl loaded"));
+    appLog.println(F("[MODULE] udp_mesh master real impl loaded"));
 }
 
 void UdpMesh::beginSlave() {
@@ -195,12 +196,12 @@ void UdpMesh::loopMaster() {
     if (!receivePacket()) return;
 
     String msg = String(rcvBuf_);
-    Serial.printf("[MASTER] recv: %s\n", msg.substring(0, 80).c_str());
+    appLog.printf("[MASTER] UDP received bytes=%u\n", (unsigned)rcvLen_);
 
     if (msg.startsWith("HELLO:")) {
         handleMasterHello(msg, remoteIp_);
     } else if (msg.startsWith("CONFIGACK:")) {
-        Serial.printf("[MASTER] CONFIGACK: %s\n", msg.substring(10).c_str());
+        appLog.println(F("[MASTER] CONFIGACK received"));
     }
 }
 
@@ -217,7 +218,7 @@ void UdpMesh::loopSlave() {
     if (!receivePacket()) goto slaveCheckWifi;
     {
         String msg = String(rcvBuf_);
-        Serial.printf("[SLAVE] recv: %s\n", msg.substring(0, 80).c_str());
+        appLog.printf("[SLAVE] UDP received bytes=%u\n", (unsigned)rcvLen_);
 
         if (msg.startsWith("RAW:")) {
             int firstColon = msg.indexOf(':', 4);
@@ -244,7 +245,7 @@ void UdpMesh::loopSlave() {
                 str::copyTo(configStore.cfg.paired_master_bssid,
                             sizeof(configStore.cfg.paired_master_bssid), bssid);
                 configStore.save();
-                Serial.printf("[SLAVE] Paired with master BSSID: %s\n", bssid.c_str());
+                appLog.printf("[SLAVE] Paired with master BSSID: %s\n", bssid.c_str());
             }
         }
     }

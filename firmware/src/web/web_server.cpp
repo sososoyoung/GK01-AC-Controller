@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "web/web_server.h"
 #include "web/api/web_api.h"
 #include "ota/ota_manager.h"
@@ -5,6 +6,10 @@
 #include "app/app_context.h"
 #include "rboot.h"
 #include <webui.h>
+#include "core/string_utils.h"
+extern "C" {
+#include <user_interface.h>
+}
 
 WebServer web;
 
@@ -25,7 +30,7 @@ const char* CAPTIVE_PATHS[] = {
 void WebServer::beginAP(uint16_t port) {
     (void)port;
     server_.begin();
-    Serial.println(F("[MODULE] web_server real impl loaded"));
+    appLog.println(F("[MODULE] web_server real impl loaded"));
 }
 
 void WebServer::beginSTA(uint16_t port) {
@@ -82,8 +87,90 @@ void WebServer::handleCaptiveRedirect() {
     server_.client().stop();
 }
 
+namespace {
+void logResponse(int code, const String& body) {
+    web.raw().sendHeader(F("Cache-Control"), F("no-store"));
+    web.raw().sendHeader(F("Pragma"), F("no-cache"));
+    web.raw().send(code, "application/json", body);
+}
+bool logAuthorized() {
+    if (!web.raw().authenticate("admin", getApPass())) {
+        logResponse(403, "{\"ok\":false,\"error\":\"auth_failed\"}"); return false;
+    }
+    if (ota.isUploading()) {
+        appLog.clear();
+        logResponse(503, "{\"ok\":false,\"error\":\"ota_busy\"}"); return false;
+    }
+    return true;
+}
+bool logUint(const String& value, uint32_t& out) {
+    if (!value.length() || value.length() > 10) return false;
+    uint64_t number = 0;
+    for (size_t i = 0; i < value.length(); ++i) {
+        if (value[i] < '0' || value[i] > '9') return false;
+        number = number * 10 + (value[i] - '0');
+        if (number > UINT32_MAX) return false;
+    }
+    out = uint32_t(number); return true;
+}
+}
+
 void WebServer::registerApiRoutes() {
     api::registerAllRoutes();
+    server_.on("/api/logs/start", HTTP_POST, []() {
+        if (!logAuthorized()) return;
+        uint32_t id = os_random();
+        if (!id || id == appLog.queue.session()) id = appLog.queue.session() + 1;
+        if (!id) id = 1;
+        uint32_t cursor = appLog.start(id);
+        logResponse(200, String("{\"ok\":true,\"session\":") + id +
+                    ",\"cursor\":" + cursor + ",\"capacity\":20,\"lease_ms\":7000}");
+    });
+    server_.on("/api/logs", HTTP_GET, []() {
+        if (!logAuthorized()) return;
+        uint32_t session, after;
+        if (!logUint(web.raw().arg("session"), session) || !logUint(web.raw().arg("after"), after)) {
+            logResponse(400, "{\"ok\":false,\"error\":\"bad_cursor\"}"); return;
+        }
+        if (!appLog.queue.renew(session, millis())) {
+            logResponse(409, "{\"ok\":false,\"error\":\"session_expired\"}"); return;
+        }
+        if (int32_t(after - appLog.queue.cursor()) > 0) {
+            logResponse(400, "{\"ok\":false,\"error\":\"bad_cursor\"}"); return;
+        }
+        uint32_t dropped = appLog.queue.acknowledge(after), next = after;
+        String json = "{\"ok\":true,\"entries\":[";
+        constexpr size_t RESPONSE_LIMIT = 2400;
+        if (!json.reserve(RESPONSE_LIMIT)) {
+            logResponse(503, "{\"ok\":false,\"error\":\"low_memory\"}"); return;
+        }
+        size_t count = min(appLog.queue.size(), size_t(10));
+        for (size_t i = 0; i < count; ++i) {
+            const auto& entry = appLog.queue.at(i);
+            String item = String("{\"seq\":") + entry.seq + ",\"uptime\":" + entry.uptime +
+                    ",\"text\":\"" + str::jsonEscape(String(entry.text)) + "\"}";
+            // JSON control escaping can expand one byte to six. Never grow
+            // the response beyond its reserved budget, even for such lines.
+            if (json.length() + item.length() + 80 > RESPONSE_LIMIT) break;
+            if (i) json += ',';
+            json += item;
+            next = entry.seq;
+        }
+        json += String("],\"next\":") + next + ",\"dropped\":" + dropped + "}";
+        logResponse(200, json);
+    });
+    server_.on("/api/logs/stop", HTTP_POST, []() {
+        if (!logAuthorized()) return;
+        uint32_t session;
+        if (!logUint(web.raw().arg("session"), session)) {
+            logResponse(400, "{\"ok\":false,\"error\":\"bad_session\"}"); return;
+        }
+        if (!appLog.queue.stop(session)) {
+            logResponse(409, "{\"ok\":false,\"error\":\"session_expired\"}"); return;
+        }
+        appLog.clear();
+        logResponse(200, "{\"ok\":true}");
+    });
     server_.on("/", HTTP_GET, [this]() { this->handleRoot(); });
 
 #if IRAC_RBOOT_OTA
@@ -98,7 +185,8 @@ void WebServer::registerApiRoutes() {
     server_.on("/update", HTTP_POST,
         [this]() {
             if (!server_.authenticate("admin", getApPass())) {
-                return server_.requestAuthentication();
+                server_.send(403, "application/json", "{\"ok\":false,\"error\":\"auth_failed\"}");
+                return;
             }
             if (!ota.lastUploadOk() || ota.lastUploadSize() == 0) {
                 String msg = "OTA write failed";
@@ -116,7 +204,7 @@ void WebServer::registerApiRoutes() {
                 server_.send(400, "text/plain", msg);
                 return;
             }
-            Serial.printf("[OTA] verified %u bytes, version=%s crc=0x%08X\n",
+            appLog.printf("[OTA] verified %u bytes, version=%s crc=0x%08X\n",
                           (unsigned)info.imageSize, info.version, info.imageCrc32);
             server_.send(200, "text/plain", "OK, rebooting");
             ota.switchToTargetRom();
@@ -133,6 +221,7 @@ void WebServer::registerApiRoutes() {
                 return;
             }
             if (upload.status == UPLOAD_FILE_START) {
+                appLog.clear();
                 ota.onUploadStart();
             } else if (upload.status == UPLOAD_FILE_WRITE) {
                 ota.onUploadChunk(upload.buf, upload.currentSize);

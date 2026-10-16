@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "hw/hvac/irac_encoder.h"
 #include "hw/ir_service.h"
 #include <IRutils.h>
@@ -30,7 +31,7 @@ stdAc::swingv_t strToSwing(const String& s) {
 bool IracEncoder::send(const hvac::Command& cmd) {
     decode_type_t proto = strToDecodeType(cmd.vendor.c_str());
     if (proto == decode_type_t::UNKNOWN) {
-        Serial.printf("[IRAC] unknown vendor: %s\n", cmd.vendor.c_str());
+        appLog.printf("[IRAC] unknown vendor: %s\n", cmd.vendor.c_str());
         return false;
     }
 
@@ -47,10 +48,10 @@ bool IracEncoder::send(const hvac::Command& cmd) {
 
     bool ok = ir.sendAc(st);
     if (ok) {
-        Serial.printf("[IRAC] %s Pwr:%s T:%d Fan:%s\n",
+        appLog.printf("[IRAC] %s Pwr:%s T:%d Fan:%s\n",
                       cmd.vendor.c_str(), cmd.power ? "ON" : "OFF", cmd.temp, cmd.fan.c_str());
     } else {
-        Serial.printf("[IRAC] sendAc failed for %s\n", cmd.vendor.c_str());
+        appLog.printf("[IRAC] sendAc failed for %s\n", cmd.vendor.c_str());
     }
     return ok;
 }

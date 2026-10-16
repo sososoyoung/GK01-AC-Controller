@@ -14,9 +14,10 @@ using std::min;
 using String = std::string;
 #define F(x) x
 struct Logger {
+    void clear() {}
     void println(const char*) {}
     template<class... T> void printf(const char*, T...) {}
-} Serial;
+} appLog;
 uint32_t millis() { return 100; }
 
 struct FakeFS;

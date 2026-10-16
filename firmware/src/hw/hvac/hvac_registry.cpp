@@ -1,3 +1,4 @@
+#include "core/live_log.h"
 #include "hw/hvac/hvac_registry.h"
 #include "hw/hvac/wahin_encoder.h"
 #include "hw/hvac/gree_encoder.h"
@@ -18,7 +19,7 @@ void HvacRegistry::begin(IrService& irRef) {
     count_ = 0;
     registerEncoder(&wahinEnc);
     registerEncoder(&greeEnc);
-    Serial.println(F("[MODULE] hvac_registry real impl loaded"));
+    appLog.println(F("[MODULE] hvac_registry real impl loaded"));
 }
 
 void HvacRegistry::registerEncoder(hvac::IEncoder* enc) {
@@ -58,6 +59,6 @@ bool HvacRegistry::send(hvac::Command& cmd) {
     hvac::IEncoder* enc = find(cmd.vendor);
     if (enc) return enc->send(cmd);
 
-    Serial.printf("[HVAC] no dedicated encoder for %s, fallback IRac\n", cmd.vendor.c_str());
+    appLog.printf("[HVAC] no dedicated encoder for %s, fallback IRac\n", cmd.vendor.c_str());
     return iracEnc.send(cmd);
 }

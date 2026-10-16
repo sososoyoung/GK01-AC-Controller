@@ -13,7 +13,8 @@
 - **远程配置** — 主机远程修改从机的 AP 名称/密码，改完从机自动脱钩成为独立主机
 - **配对模式** — 主机开启 60 秒配对窗口，新从机加入需要主机确认
 - **配对持久化** — 已配对从机的 MAC/名称/图标/楼层保存到 LittleFS，主机重启后自动恢复
-- **红外学习** — 捕获任意遥控器信号，命名保存
+- **红外学习** — 在「遥控 → 学习信号」捕获信号，命名保存到当前浏览器
+- **网页实时日志** — 热点密码认证后按需查看当前设备应用日志，仅 RAM 暂存，不保存历史
 - **空调状态持久化** — 温度/模式/风速自动保存，重开页面恢复上次设置
 - **MQTT Home Assistant** — STA Home 模式接入家庭路由器，支持 HA Climate 自动发现
 - **传感器** — DS18B20 温度 + AM312 人体感应（可选配件）
@@ -29,11 +30,17 @@
 
 ## 界面预览
 
+本轮完整设计、实现与验收记录见 [UI 与实时日志修改方案](.sisyphus/plans/ui-maintenance-live-logs.md)。以下界面截图使用模拟设备数据。
+
 ### 设备管理
 
 ![设备页面](screenshots/devices-page.png)
 
 按楼层分组显示所有设备，点击从机卡片可编辑名称、图标、楼层，远程重启或断开。
+
+### 维护诊断
+
+统一的 OTA 密码表单与实时日志入口：[浅色预览](screenshots/maintenance-light.png)、[深色预览](screenshots/maintenance-dark.png)。
 
 ### 空调控制
 
@@ -124,7 +131,7 @@ python -m esptool --port COMx --baud 115200 --before no-reset write-flash -fm do
 
 ### WebUI OTA 升级
 
-已经运行 v2.x rboot 固件的设备，可以在 WebUI「设置 → 固件更新」上传 OTA 包：
+已经运行 v2.x rboot 固件的设备，可以在 WebUI「设置 → 维护诊断 → 固件更新」上传 OTA 包：
 
 | 可以上传 | 不要上传 |
 |---------|----------|
@@ -132,6 +139,8 @@ python -m esptool --port COMx --baud 115200 --before no-reset write-flash -fm do
 | 本地 `firmware/flash_images/ota.bin` | `rboot-vX.X.bin` |
 | 兼容别名 `firmware-rom0/rom1-vX.X.bin` 或 `flash_images/rom0.bin` / `rom1.bin` | `.pio/build/.../firmware.bin` |
 | `prepare_flash.py` 生成的 rboot OTA 应用镜像（`EA 04` + `IRACOTA1` manifest） | 旧版无 manifest 的 OTA 包 |
+
+填写「本设备热点密码」（用户名固定为 `admin`，不是家庭 WiFi 密码）后，页面会先单独验证身份，再携带相同认证上传。密码默认掩码，可手动显隐，不写入浏览器存储。上传期间停止日志与后台轮询、锁定文件选择并阻止重复提交；上传达到 100% 后仍需等待设备校验结果。Factory 固件与分区状态查询失败时均禁止上传。
 
 WebUI 会先读取整个文件并校验镜像：OTA 包必须以 `EA 04` 开头，flash mode 必须是 `DOUT(0x03)`，rboot new image 布局必须正确，内部 ESP8266 checksum 必须匹配，并且 IROM 末尾必须带 `IRACOTA1` manifest。manifest 包含板型 `GK01_IR_MINI_V105`、目标策略、镜像大小和 CRC32。检查不通过时按钮会保持禁用，不会写入 flash。
 
@@ -264,10 +273,22 @@ GPIO13/D7 与黄色 LED 复用，可作为本机按键/触点使用：
 | 页面 | 功能 |
 |------|------|
 | 空调 | 品牌/温度/模式/风速控制，多选目标设备 |
-| 遥控 | 发送已保存的信号，支持编辑/删除 |
-| 设备 | 设备拓扑/楼层分组，从机管理（命名/图标/楼层/远程配置） |
-| 学习 | 捕获遥控器信号，命名保存 |
-| 设置 | 网络/MQTT/热点/设备模式，OTA 更新，恢复出厂 |
+| 遥控 | 「已保存」发送、重命名、删除按钮；「学习信号」捕获并保存 |
+| 设备 | 本机角色、楼层分组、从机编辑和唯一配对入口（仅主机显示） |
+| 设置 → 网络连接 | 工作模式、家庭 WiFi、热点、MQTT |
+| 设置 → 维护诊断 | 固件更新、实时日志、浏览器遥控数据、本机按键、关于和恢复出厂 |
+
+遥控数据导入、导出和清除只影响当前浏览器保存的遥控按钮与品牌；设备恢复出厂独立处理。页面不可见、离开功能和 OTA 上传期间停止相关轮询。
+
+### 实时日志
+
+进入「设置 → 维护诊断 → 实时日志」，输入本设备热点密码并点击「开始查看」。可暂停、重新输入密码继续、清空当前视图和切换自动滚动。暂停后继续会建立新会话，不补历史；网页内存最多保留 300 行。错误密码、会话失效、网络超时等状态直接显示在日志卡片。
+
+- 仅转发本项目应用日志，保留串口输出；不包含 boot ROM、SDK 和第三方库直接输出，也不汇聚其他从机。Slave 模式没有网页服务。
+- 约每 500ms 发起一次增量短请求，上一请求完成才安排下一次；正常空闲设备目标延迟约 0.5–1 秒。请求 3.5 秒超时，短暂网络错误退避重试，连续失败后断开。
+- 设备最多一个活动会话，新页面会替换旧会话。7 秒无有效轮询即过期清空；离开维护诊断、切换主 Tab、页面隐藏/关闭、开始 OTA 时释放订阅并清除网页会话凭据。释放请求失败由租约兜底。
+- 固定 RAM 日志对象在 ESP8266 为 3892 字节（编译静态断言 ≤4KiB），包含 20 条队列与行缓冲；每行最多 175 字节正文，超长行按 UTF-8 边界截断。队列溢出丢旧条并显示丢失数；每次最多返回 10 条，JSON 正文硬上限 2400 字节，特殊字符膨胀时缩小批次。
+- 无订阅时不收集历史；断开和过期清空 RAM。日志和认证凭据不写 LittleFS、EEPROM、Flash、localStorage、sessionStorage 或 IndexedDB，不提供历史文件。CONFIG 报文及 MQTT 任意原始载荷不会直接写入日志。
 
 ## 空调品牌
 
@@ -307,11 +328,35 @@ GPIO13/D7 与黄色 LED 复用，可作为本机按键/触点使用：
 | `/api/factory/reset` | POST | 恢复出厂设置 |
 | `/api/sensor` | GET | 温度和人体传感器状态 |
 | `/api/ota/status` | GET | 当前 ROM 分区状态 |
-| `/update` | POST | OTA 固件上传 |
+| `/api/ota/auth` | GET | OTA 上传前 Basic 身份验证 |
+| `/update` | POST | OTA 固件上传（全程 Basic 鉴权） |
+| `/api/logs/start` | POST | 新建日志会话，从当前时刻开始 |
+| `/api/logs?session=...&after=...` | GET | 有限批次增量日志并续租 |
+| `/api/logs/stop` | POST | 释放指定日志会话 |
+
+日志 API 每次验证 `Authorization: Basic ...`，用户名 `admin`，密码为设备当前热点密码，不使用 URL 传递凭据，不返回 Basic challenge；响应均为 `Cache-Control: no-store`。Factory 固件也支持日志。
+
+`start` 返回 `{ok, session, cursor, capacity:20, lease_ms:7000}`；`GET` 参数均为 uint32 十进制，`after` 使用上次返回的游标，响应 `{ok, entries:[{seq,uptime,text}], next, dropped}`，`uptime` 为设备毫秒数。下一次请求的 `after=next` 会确认上一批已接收条目。`stop` 用 `application/x-www-form-urlencoded` 请求正文 `session=...`，旧会话不能关闭新会话。错误状态：403 认证失败、400 参数/游标错误、409 会话失效/被替换、503 OTA 忙或内存不足。客户端应丢弃旧会话的迟到响应。
+
+## 回归验证
+
+```bash
+python3 scripts/test_storage_ota.py
+python3 scripts/test_live_logs.py
+node scripts/test_ota_auth.js
+node scripts/test_web_lifecycle.js
+cd firmware
+pio run -e rom0 -e rom1 -e factory
+python3 prepare_flash.py both
+cd ..
+python3 scripts/verify_ota_images.py firmware/flash_images/ota.bin firmware/flash_images/rom0.bin firmware/flash_images/rom1.bin firmware/flash_images/combined.bin
+```
+
+Host 测试编译真实存储/OTA 方法、日志队列、Print 适配器及日志 HTTP handler；Node 测试执行真实内嵌网页函数，覆盖重复上传、异步文件校验与页面迟到响应。模拟 API 的浏览器验收不等同真机验证；实际设备仍需覆盖 AP/Home、长时间查看、断网、低 heap、高频日志和实际 OTA。
 
 ## 项目结构
 
-v3.0 起按领域模块化拆分，单文件 `main.cpp` 拆成 28 个文件：
+v3.0 起按领域模块化拆分，当前主要结构如下：
 
 ```
 ├── firmware/
@@ -325,6 +370,8 @@ v3.0 起按领域模块化拆分，单文件 `main.cpp` 拆成 28 个文件：
 │   │   │   ├── pins.h               # GPIO 引脚集中定义
 │   │   │   ├── constants.h          # 间隔/超时/容量等魔数集中
 │   │   │   ├── json_builder.{h,cpp} # 栈分配 JSON 构造器（零 heap）
+│   │   │   ├── live_log_queue.{h,cpp} # 有界 RAM 队列、游标和订阅租约
+│   │   │   ├── live_log.{h,cpp}     # 串口 + 按需网页日志 Print 出口
 │   │   │   └── string_utils.{h,cpp} # sanitize/parse/jsonEscape 工具
 │   │   ├── config/
 │   │   │   └── config_store.{h,cpp} # Config 结构 + LittleFS 持久化 + 延迟批写
@@ -354,7 +401,7 @@ v3.0 起按领域模块化拆分，单文件 `main.cpp` 拆成 28 个文件：
 │   │   │   └── sta_home_mode.{h,cpp}
 │   │   ├── diag.cpp                   # 独立硬件诊断固件（factory 环境）
 │   │   └── rboot-api.cpp              # rboot SDK 桥接
-│   ├── include/webui.h                # iOS 风格 WebUI（PROGMEM 内嵌，5 Tab）
+│   ├── include/webui.h                # 内嵌 WebUI（4 Tab、网络/维护分组）
 │   ├── legacy/main_v1.cpp             # v2.x 单文件参考（不参与编译）
 │   ├── prepare_flash.py               # 生成 EA04 + IRACOTA1 OTA 包和首刷 combined 镜像
 │   ├── rboot-bootloader/              # rboot 双分区引导器（MIT）
