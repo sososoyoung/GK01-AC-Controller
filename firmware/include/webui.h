@@ -74,7 +74,7 @@ background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/sv
 background-repeat:no-repeat;background-position:right 14px center}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:4px 0}
 .grid-b{padding:13px 6px;border-radius:12px;border:1.5px solid var(--gray5);
-background:var(--card);font-size:13px;font-weight:500;cursor:pointer;
+background:var(--card);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;
 display:flex;flex-direction:column;align-items:center;gap:3px;transition:all .12s}
 .grid-b:active{background:var(--gray6);transform:scale(.95)}
 .grid-b .ic{font-size:22px}
@@ -101,8 +101,6 @@ padding:10px 11px;font-size:13px;color:var(--text3);line-height:1.45;margin:8px 
 .ota-meta{font-size:12px;color:var(--text3);line-height:1.4;margin-top:4px}
 .ota-ok{color:var(--green)}.ota-bad{color:var(--red)}
 .ota-wait{color:var(--text3)}
-.learn-pulse{animation:lp 1.5s infinite}
-@keyframes lp{0%,100%{box-shadow:0 0 0 0 rgba(255,59,48,.25)}50%{box-shadow:0 0 0 10px rgba(255,59,48,0)}}
 .pair-pulse{animation:pp 1.2s infinite}
 @keyframes pp{0%,100%{box-shadow:0 0 0 0 rgba(0,122,255,.3)}50%{box-shadow:0 0 0 12px rgba(0,122,255,0)}}
 .slave-dot{width:8px;height:8px;border-radius:50%;background:#34C759;display:inline-block;margin-right:8px}
@@ -124,7 +122,7 @@ padding:10px 11px;font-size:13px;color:var(--text3);line-height:1.45;margin:8px 
 .icon-pick{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:8px 0}
 .icon-pick button{font-size:22px;padding:8px 0;border-radius:8px;border:1.5px solid var(--gray5);background:var(--card);cursor:pointer}
 .icon-pick button.active{border-color:var(--blue);background:rgba(0,122,255,.08)}
-.chip{padding:6px 12px;border-radius:16px;border:1.5px solid var(--gray5);background:var(--card);font-size:13px;font-weight:500;cursor:pointer;transition:all .12s}
+.chip{color:var(--text);padding:6px 12px;border-radius:16px;border:1.5px solid var(--gray5);background:var(--card);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:all .12s}
 .chip.active{background:var(--blue);color:#fff;border-color:var(--blue)}
 .chip:active{transform:scale(.95)}
 .hist-item{display:flex;align-items:center;padding:10px 16px;gap:10px}
@@ -216,6 +214,20 @@ button:disabled,input:disabled{opacity:.5;cursor:default}
 .log-scroll{display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;color:var(--text3)}
 .log-scroll input{width:20px;height:20px}
 .ota-guide details{margin-top:8px}.ota-guide summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--blue)}
+.ac-config{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding-top:4px}
+.ac-config>div{min-width:0}.ac-config label.field-label{margin-top:4px}
+.ac-config select{min-width:0;min-height:44px;padding-left:10px;padding-right:30px;text-overflow:ellipsis}
+.tv-remote{max-width:300px;margin:20px auto 8px;display:flex;flex-direction:column;gap:22px}
+.tv-remote button{min-height:48px;color:var(--text);background:var(--gray6);border:1px solid var(--gray4);border-radius:14px;font-size:15px;cursor:pointer}
+.tv-remote button:active{background:var(--gray5)}
+.tv-remote .tv-power{align-self:flex-end;width:64px;color:var(--red);font-weight:600}
+.tv-dpad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,60px);gap:6px}
+.tv-dpad [data-key=up]{grid-area:1/2}.tv-dpad [data-key=left]{grid-area:2/1}
+.tv-dpad [data-key=ok]{grid-area:2/2;background:var(--blue);color:#fff;border-color:var(--blue);font-weight:600}
+.tv-dpad [data-key=right]{grid-area:2/3}.tv-dpad [data-key=down]{grid-area:3/2}
+.tv-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tv-volume{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#btn-rec,#learn-card{animation:none;transition:none}#btn-rec:active,#learn-card:active{transform:none}
 .dev-name,.dev-sub,.it span{overflow-wrap:anywhere;min-width:0}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
@@ -236,20 +248,24 @@ button:disabled,input:disabled{opacity:.5;cursor:default}
 <div id="pg-devices" class="pg">
 <div class="pg-title">设备</div>
 <div class="pg-sub">主机负责发指令；从机配对后会跟随主机执行。</div>
-<div id="dev-floor-list"></div>
+<p id="dev-load-status" class="help" role="status">正在读取设备信息…</p>
+<div id="dev-floor-list"><div class="floor-h">当前设备</div><div class="dev-grid"><div class="dev-card master"><div class="dev-icon">📡</div><div class="dev-name">本机</div><div class="dev-sub">正在读取设备信息…</div></div></div></div>
 <div style="text-align:center;padding:8px">
 <p class="help" id="dev-pair-help">主机开启配对后，60 秒内给另一台设备上电或重启。</p><button hidden class="b b-or b-fw" id="dev-pair-btn" onclick="togglePair()">配对新设备</button>
 </div>
 </div>
 
 <div id="pg-ac" class="pg active">
-<div class="pg-title">空调</div>
+<div class="pg-title">遥控</div>
+<div class="seg subnav" id="remote-kind" aria-label="遥控设备"><button class="active" aria-pressed="true" data-kind="ac" onclick="remoteKind('ac')">空调</button><button aria-pressed="false" data-kind="tv" onclick="remoteKind('tv')">电视</button></div>
+<div id="remote-ac">
 <div id="ac-target-wrap" style="display:none;margin-bottom:10px">
 <div style="font-size:12px;font-weight:700;color:var(--gray);letter-spacing:.5px;margin-bottom:4px">控制目标</div>
 <div id="ac-target-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
 </div>
-<div class="cd"><div class="cd-h">品牌</div><div class="cd-b">
-<select id="ac-v">
+<div class="cd"><div class="cd-b">
+<div class="ac-config"><div>
+<label class="field-label" for="ac-v">品牌</label><select id="ac-v">
 <optgroup label="常用">
 <option value="GREE">格力</option>
 <option value="WAHIN">华凌</option>
@@ -295,10 +311,10 @@ button:disabled,input:disabled{opacity:.5;cursor:default}
 <option value="COOLIX">Coolix 万能</option>
 </optgroup>
 </select>
+</div><div>
+<label class="field-label" for="ac-model">遥控器型号</label><select id="ac-model" aria-label="空调遥控器型号"><option value="0">默认</option></select>
 </div></div>
-<div class="cd"><div class="cd-h">遥控器型号</div><div class="cd-b">
-<select id="ac-model" aria-label="空调遥控器型号"><option value="0">默认（兼容原配置）</option></select>
-<p style="font-size:13px;color:var(--text3);margin-top:8px">优先匹配遥控器背面的型号；不确定时使用默认。</p>
+<p id="ac-load-status" class="help" role="status" hidden></p>
 </div></div>
 <div class="cd"><div class="cd-h">模式</div><div class="cd-b">
 <div class="seg" id="s-mode">
@@ -326,9 +342,16 @@ button:disabled,input:disabled{opacity:.5;cursor:default}
 <button class="b b-rd b-fw" onclick="acCmd('Off')">关机</button>
 </div>
 </div>
+<div id="remote-tv" hidden><div class="cd"><div class="cd-h">小米电视</div><div class="cd-b">
+<label class="field-label" for="tv-target">控制目标</label><select id="tv-target"><option value="LOCAL">仅本机</option><option value="ALL">全部设备</option></select>
+<p style="font-size:13px;color:var(--text3);margin:10px 0">适用于兼容此红外码组的小米电视。电源为切换键；语音、蓝牙配对需使用原遥控器。无响应时可学习其他红外遥控器的信号。</p>
+<div class="tv-remote" id="tv-buttons" aria-label="小米电视遥控器"></div>
+</div></div>
+</div>
+</div>
 
 <div id="pg-learn" class="pg">
-<div class="pg-title">遥控器</div><div class="seg subnav" aria-label="遥控功能"><button class="" onclick="go('remote')">已保存</button><button class="active" onclick="go('learn')">学习信号</button></div>
+<div class="pg-title">学习与按键</div><div class="seg subnav" aria-label="遥控功能"><button class="" onclick="go('remote')">已保存</button><button class="active" onclick="go('learn')">学习信号</button></div>
 <div class="pg-sub">
 <span class="badge badge-gy" id="learn-st">就绪</span>
 </div>
@@ -355,12 +378,7 @@ button:disabled,input:disabled{opacity:.5;cursor:default}
 <button class="b b-gy b-fw" style="font-size:14px" onclick="clearHist()">清除历史</button>
 </div>
 <div id="pg-remote" class="pg">
-<div class="pg-title">遥控器</div><div class="seg subnav" aria-label="遥控功能"><button class="active" onclick="go('remote')">已保存</button><button class="" onclick="go('learn')">学习信号</button></div><div class="pg-sub">点击已保存的按钮发送信号</div>
-<div class="cd"><div class="cd-h">小米电视</div><div class="cd-b">
-<label class="field-label" for="tv-target">控制目标</label><select id="tv-target"><option value="LOCAL">仅本机</option><option value="ALL">全部设备</option></select>
-<p style="font-size:13px;color:var(--text3);margin:10px 0">适用于兼容此红外码组的小米电视。电源为切换键；语音、蓝牙配对需使用原遥控器。无响应时可学习其他红外遥控器的信号。</p>
-<div class="grid" id="tv-buttons"></div>
-</div></div>
+<div class="pg-title">学习与按键</div><div class="seg subnav" aria-label="遥控功能"><button class="active" onclick="go('remote')">已保存</button><button class="" onclick="go('learn')">学习信号</button></div><div class="pg-sub">点击已保存的按钮发送信号</div>
 <div class="cd"><div class="cd-h">导入码库</div><div class="cd-b">
 <label class="field-label" for="ir-import">选择转换后的 JSON 码集</label><input id="ir-import" type="file" accept=".json,application/json" onchange="importIrCodes(this)">
 <p style="font-size:13px;color:var(--text3);margin-top:8px">码集保存在当前浏览器，导入按钮仅由本机发射。支持项目转换工具生成的空调与家电码集。</p>
@@ -456,23 +474,41 @@ button:disabled,input:disabled{opacity:.5;cursor:default}
 </div></div>
 <div class="cd"><div class="cd-h">关于</div>
 <div class="it"><span>版本</span><span style="color:var(--gray)">v3.0.0</span></div>
+<div class="it"><span>构建时间</span><span id="sys-build-time" style="color:var(--gray)">--</span></div>
 <div class="it"><span>MAC</span><span id="sys-mac" style="color:var(--gray)">--</span></div>
 <div class="it"><span>设备</span><span style="color:var(--gray)">IR Mini V105</span></div>
 <div class="it"><span>协议库</span><span style="color:var(--gray)">IRremoteESP8266</span></div>
 </div>
 <div class="cd"><div class="it" onclick="factoryReset()"><span style="color:var(--red)">恢复设备出厂设置</span><span class="arr"></span></div></div></div></div>
 <nav class="bar">
-<a class="active" data-page="ac" aria-current="page" href="#ac" onclick="go('ac');return false"><i>&#10052;&#65039;</i>空调</a>
-<a data-page="remote" href="#remote" onclick="go('remote');return false"><i>&#127903;</i>遥控</a>
+<a class="active" data-page="ac" aria-current="page" href="#ac" onclick="go('ac');return false"><i>&#127899;</i>遥控</a>
+<a data-page="remote" href="#remote" onclick="go('remote');return false"><i>&#127903;</i>学习</a>
 <a data-page="devices" href="#devices" onclick="go('devices');return false"><i>&#127968;</i>设备</a>
 <a data-page="settings" href="#settings" onclick="go('settings');return false"><i>&#9881;</i>设置</a>
 </nav>
 <script>
+// Keep startup/configuration reads within the ESP8266's small connection budget.
+var readQueue=[],readPending={},readActive=0;
+function getJson(url){
+  if(readPending[url])return readPending[url];
+  var promise=new Promise(function(resolve,reject){readQueue.push({url:url,resolve:resolve,reject:reject})});
+  readPending[url]=promise;drainReads();return promise;
+}
+function drainReads(){
+  while(readActive<2&&readQueue.length){
+    (function(job){
+      ++readActive;var controller=new AbortController();
+      var timer=setTimeout(function(){controller.abort()},5000);
+      fetch(job.url,{signal:controller.signal,cache:'no-store'}).then(function(r){if(!r.ok)throw Error('http_'+r.status);return r.json()})
+      .then(job.resolve,job.reject).finally(function(){clearTimeout(timer);delete readPending[job.url];--readActive;drainReads()});
+    })(readQueue.shift());
+  }
+}
 var sigs=JSON.parse(localStorage.getItem('ir_sigs')||'[]');
 var hist=[],recording=false,latestRaw='',latestProto='',latestBits=0,pollTimer=null;
 var renameIdx=-1;
 var otaTargetRom='-',otaSupported=false,otaBusy=false,otaValidation=0,otaTargetFile='flash_images/ota.bin';
-fetch('/api/ota/status').then(function(r){return r.json()}).then(function(d){
+getJson('/api/ota/status').then(function(d){
   if(!d.ok||(!Number.isInteger(d.current_rom)&&d.ota_supported!==false))throw new Error('bad_status');
   otaSupported=d.ota_supported!==false;
   if(!otaSupported){
@@ -602,6 +638,11 @@ function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');setTi
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function jsq(v){return String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r/g,' ').replace(/\n/g,' ')}
 var currentPage='ac',currentSettings='network';
+function remoteKind(kind){
+  if(otaBusy)return;
+  $('remote-ac').hidden=kind!=='ac';$('remote-tv').hidden=kind!=='tv';
+  document.querySelectorAll('[data-kind]').forEach(function(b){var active=b.dataset.kind===kind;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))});
+}
 function resumePagePolls(){
   if(document.hidden||otaBusy)return;
   if(currentPage==='learn')startPoll();
@@ -616,7 +657,8 @@ function go(p){
   $('pg-'+p).classList.add('active');
   document.querySelectorAll('nav.bar a').forEach(function(e){var active=e.dataset.page===(p==='learn'?'remote':p);e.classList.toggle('active',active);if(active)e.setAttribute('aria-current','page');else e.removeAttribute('aria-current')});
   if(p==='remote')renderRemote();
-  if(p==='ac')loadAcTargets();
+  if(p==='ac'){loadAcTargets();loadAcState()}
+  if(p==='settings'){loadWifiStatus();loadMqttConfig();loadApConfig();loadSysInfo()}
   resumePagePolls();
 }
 function settingsPanel(panel){
@@ -654,19 +696,22 @@ function setTargetAll(){
   });
   localStorage.setItem('ir_target','ALL');
 }
-var acCatalog=[],acModel=0;
+var acCatalog=[],acModel=0,acStateReady=false,acStateLoading=false;
 function fillAcModels(model){
   var entry=acCatalog.find(function(x){return x.vendor===$('ac-v').value});
   var select=$('ac-model');select.innerHTML='';
-  (entry?entry.models:[{id:0,name:'默认（兼容原配置）'}]).forEach(function(x){var o=document.createElement('option');o.value=x.id;o.textContent=x.name;select.appendChild(o)});
+  (entry?entry.models:[{id:0,name:'默认'}]).forEach(function(x){var o=document.createElement('option');o.value=x.id;o.textContent=x.id===0?'默认':x.name;select.appendChild(o)});
   select.value=String(model||0);if(select.selectedIndex<0)select.value='0';
   acModel=Number(select.value);
 }
 $('ac-v').onchange=function(){localStorage.setItem('ir_ac_v',this.value);fillAcModels(0)};
 $('ac-model').onchange=function(){acModel=Number(this.value)};
-Promise.all([
-  fetch('/api/hvac/catalog').then(function(r){if(!r.ok)throw Error();return r.json()}),
-  fetch('/api/hvac/state').then(function(r){if(!r.ok)throw Error();return r.json()})
+function loadAcState(){
+if(acStateReady||acStateLoading)return;
+acStateLoading=true;$('ac-load-status').hidden=true;
+return Promise.all([
+  getJson('/api/hvac/catalog'),
+  getJson('/api/hvac/state')
 ]).then(function(result){
   acCatalog=result[0];var d=result[1],select=$('ac-v'),labels={};
   Array.from(select.options).forEach(function(o){labels[o.value]=o.textContent});select.innerHTML='';
@@ -676,7 +721,10 @@ Promise.all([
   if(d.temp)$('t-val').textContent=d.temp;
   if(d.mode){document.querySelectorAll('#s-mode button').forEach(function(b){b.classList.toggle('active',b.dataset.v===d.mode)})}
   if(d.fan){document.querySelectorAll('#s-fan button').forEach(function(b){b.classList.toggle('active',b.dataset.v===d.fan)})}
-}).catch(function(){toast('空调型号列表加载失败，请刷新')});
+  acStateReady=true;
+}).catch(function(){$('ac-load-status').textContent='空调型号读取失败，返回遥控页时将重试。';$('ac-load-status').hidden=false}).finally(function(){acStateLoading=false});
+}
+loadAcState();
 var captureGeneration=0;
 function startPoll(){
   if(pollTimer||currentPage!=='learn'||document.hidden||otaBusy)return;
@@ -710,12 +758,11 @@ recording=!recording;
 var b=$('btn-rec'),h=$('rec-hint'),ls=$('latest-signal');
 if(recording){
 b.textContent='\u25A0 停止';b.className='b b-gy b-fw';
-h.style.display='block';$('learn-card').classList.add('learn-pulse');
+h.style.display='block';
 startPoll();
 }else{
 b.textContent='\u25CF 开始学习';b.className='b b-rd b-fw';
 h.style.display='none';ls.style.display='none';
-$('learn-card').classList.remove('learn-pulse');
 }
 }
 function saveSig(){
@@ -735,7 +782,11 @@ fetch('/api/send',{method:'POST',headers:{'Content-Type':'application/x-www-form
 }
 function sendSaved(i){var s=sigs[i];if(s)sendRaw(s.raw,s.frequency,s.target)}
 var tvKeys=[['power','电源'],['home','主页'],['menu','菜单'],['up','↑'],['ok','确认'],['back','返回'],['left','←'],['down','↓'],['right','→'],['volume_up','音量＋'],['volume_down','音量－']];
-$('tv-buttons').innerHTML=tvKeys.map(function(k){return '<button class="grid-b" onclick="tvCmd(\''+k[0]+'\')">'+k[1]+'</button>'}).join('');
+function tvButton(key){var label=tvKeys.find(function(k){return k[0]===key})[1];return '<button data-key="'+key+'" aria-label="'+({up:'向上',down:'向下',left:'向左',right:'向右'}[key]||label)+'" onclick="tvCmd(\''+key+'\')">'+label+'</button>'}
+$('tv-buttons').innerHTML=tvButton('power').replace('<button ','<button class="tv-power" ')+
+'<div class="tv-dpad">'+['up','left','ok','right','down'].map(tvButton).join('')+'</div>'+
+'<div class="tv-actions">'+['back','home','menu'].map(tvButton).join('')+'</div>'+
+'<div class="tv-volume">'+['volume_down','volume_up'].map(tvButton).join('')+'</div>';
 function tvCmd(key){
   if(otaBusy)return;
   fetch('/api/tv/xiaomi',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key='+encodeURIComponent(key)+'&target='+encodeURIComponent($('tv-target').value)})
@@ -858,7 +909,7 @@ function staErrText(e){
   return STA_ERR[code]||e;
 }
 function loadWifiStatus(){
-  fetch('/api/wifi/status').then(function(r){return r.json()}).then(function(d){
+  getJson('/api/wifi/status').then(function(d){
     var s=$('wifi-status');
     var modeTxt=d.mode==='sta'?'STA 模式':d.mode==='slave'?'从机模式':'AP 模式';
     var h='<b>'+modeTxt+'</b> &nbsp; SSID: '+esc(d.ssid)+' &nbsp; IP: '+esc(d.ip)+(d.rssi?' &nbsp; RSSI: '+esc(d.rssi):'');
@@ -872,11 +923,10 @@ function loadWifiStatus(){
     else if(d.mqtt_host){h+='<br><span style="color:var(--gray)">MQTT: 未连接</span>';s.innerHTML=h}
   }).catch(function(){});
 }
-loadWifiStatus();
 function scanWifi(){
   var el=$('wifi-scan-results');el.innerHTML='<div style="padding:12px;text-align:center;color:var(--gray)">扫描中...</div>';
   $('wifi-list').style.display='block';
-  fetch('/api/wifi/scan').then(function(r){return r.json()}).then(function(list){
+  getJson('/api/wifi/scan').then(function(list){
     if(!list.length){el.innerHTML='<div style="padding:12px;text-align:center;color:var(--gray)">没有发现WiFi</div>';return}
     var h='';
     list.sort(function(a,b){return b.rssi-a.rssi});
@@ -906,14 +956,13 @@ function forgetWifi(){
   fetch('/api/wifi/forget',{method:'POST'}).then(function(){toast('重启中...')});
 }
 function loadMqttConfig(){
-  fetch('/api/mqtt/config').then(function(r){return r.json()}).then(function(d){
+  getJson('/api/mqtt/config').then(function(d){
     if(d.host)$('mqtt-host').value=d.host;
     if(d.port)$('mqtt-port').value=d.port;
     if(d.user)$('mqtt-user').value=d.user;
     if(d.topic)$('mqtt-topic').value=d.topic;
   }).catch(function(){});
 }
-loadMqttConfig();
 function saveMqtt(){
   var host=$('mqtt-host').value.trim();if(!host){toast('请输入MQTT服务器地址');return}
   toast('保存中...');
@@ -925,12 +974,11 @@ function saveMqtt(){
   .then(function(r){return r.json()}).then(function(d){toast(d.ok?'重启中...':'失败')});
 }
 function loadApConfig(){
-  fetch('/api/ap/config').then(function(r){return r.json()}).then(function(d){
+  getJson('/api/ap/config').then(function(d){
     if(d.ssid)$('ap-ssid').value=d.ssid;
     if(d.pass)$('ap-pass').value=d.pass;
   }).catch(function(){});
 }
-loadApConfig();
 function saveApConfig(){
   var ssid=$('ap-ssid').value.trim();if(!ssid){toast('请输入热点名称');return}
   if(ssid.length>32){toast('名称不能超过32个字符');return}
@@ -946,9 +994,13 @@ function factoryReset(){
   toast('恢复出厂中...');
   fetch('/api/factory/reset',{method:'POST'}).then(function(r){return r.json()}).then(function(d){toast(d.ok?'重启中...':'失败')}).catch(function(){toast('失败')});
 }
+var deviceInfo=null;
 function loadSysInfo(){
-  fetch('/api/system/info').then(function(r){return r.json()}).then(function(d){
+  getJson('/api/system/info').then(function(d){
+    deviceInfo=d;
+    if(currentPage==='devices')renderDevices();
     if(d.mac)$('sys-mac').textContent=d.mac;
+    if(d.buildTime)$('sys-build-time').textContent=d.buildTime;
     var seg=$('s-devmode');if(seg){
       seg.querySelectorAll('button').forEach(function(b){
         var fm=d.forceMode||0;
@@ -989,61 +1041,65 @@ function saveForceMode(){
   }).catch(function(){toast('失败')});
 }
 function togglePair(){
-  fetch('/api/slaves').then(function(r){return r.json()}).then(function(d){
+  getJson('/api/slaves').then(function(d){
     if(d.pairing){fetch('/api/pair/stop',{method:'POST'}).then(function(){toast('配对已停止');loadDevices()})}
     else{toast('配对已开启，给另一台设备上电或重启');fetch('/api/pair/start',{method:'POST'}).then(function(){loadDevices()})}
   });
 }
-var devPollTimer=null,devGeneration=0,devInFlight=false;
+var devPollTimer=null,devGeneration=0,devInFlight=false,deviceSlaves=[],devicePairing=false,devicePairingLeft=0;
 var ICONS={'ac':'❄️','bed':'🛏️','book':'📚','tv':'📺','light':'💡','kitchen':'🍳','door':'🚪','star':'⭐'};
 function devPageActive(generation){return generation===devGeneration&&currentPage==='devices'&&!document.hidden&&!otaBusy}
-function startDevPoll(){if(devPollTimer||currentPage!=='devices'||document.hidden||otaBusy)return;loadDevices()}
+function startDevPoll(){if(devPollTimer||currentPage!=='devices'||document.hidden||otaBusy)return;renderDevices();loadDevices()}
 function stopDevPoll(){++devGeneration;clearTimeout(devPollTimer);devPollTimer=null;devInFlight=false}
+function renderDevices(){
+  var el=$('dev-floor-list');if(!el)return;
+  var info=deviceInfo||{},floors=Object.create(null);
+  deviceSlaves.forEach(function(s){var fl=s.floor||'未分组';if(!floors[fl])floors[fl]=[];floors[fl].push(s)});
+  var h='<div class="floor-h">'+(info.mode==='ap'?'本机（主机）':'当前设备')+'</div>';
+  h+='<div class="dev-grid"><div class="dev-card master"><div class="dev-icon">'+(ICONS[info.deviceIcon||'ac']||'📡')+'</div>';
+  h+='<div class="dev-name">'+esc(info.deviceName||'本机')+'</div>';
+  h+='<div class="dev-sub">'+esc(info.apMac||info.mac||'正在读取设备信息…')+'</div>';
+  var role=info.mode==='ap'?'主机':info.mode==='slave'?'从机':info.mode==='sta'?'家庭网络':'';
+  if(role)h+='<div class="dev-status dev-online">'+role+'</div>';
+  h+='</div></div>';
+  $('dev-pair-btn').hidden=info.mode!=='ap';
+  $('dev-pair-help').textContent=info.mode==='ap'?'开启配对后，60 秒内给另一台设备上电或重启。':'配对仅适用于独立主机模式。';
+  Object.keys(floors).forEach(function(fl){
+    h+='<div class="floor-h">'+esc(fl)+'</div><div class="dev-grid">';
+    floors[fl].forEach(function(s){
+      var on=(s.ago||0)<30000;
+      h+='<div class="dev-card" onclick="editDevice(\''+jsq(s.id)+'\')"><div class="dev-icon">'+(ICONS[s.icon]||'📦')+'</div>';
+      h+='<div class="dev-name">'+esc(s.name||s.id)+'</div><div class="dev-sub">'+esc(s.ip)+'</div>';
+      h+='<div class="dev-status '+(on?'dev-online':'dev-offline')+'">'+(on?'在线':'离线')+'</div></div>';
+    });h+='</div>';
+  });
+  el.innerHTML=h;
+  var pb=$('dev-pair-btn');
+  pb.textContent=devicePairing?'配对中 ('+devicePairingLeft+'s)...':'配对新设备';pb.classList.toggle('pair-pulse',!!devicePairing);
+}
 function loadDevices(){
   if(currentPage!=='devices'||document.hidden||otaBusy||devInFlight)return;
   clearTimeout(devPollTimer);devPollTimer=null;devInFlight=true;var generation=devGeneration;
-  return fetch('/api/slaves').then(function(r){return r.json()}).then(function(d){
-    if(!devPageActive(generation))return;
-    var el=$('dev-floor-list');if(!el)return;
-    var floors={};
-    d.slaves.forEach(function(s){
-      var fl=s.floor||'未分组';
-      if(!floors[fl])floors[fl]=[];
-      floors[fl].push(s);
-    });
-    var h='';
-    return fetch('/api/system/info').then(function(r2){return r2.json()}).then(function(info){
-      if(!devPageActive(generation))return;
-      h+='<div class="floor-h">'+(info.mode==='ap'?'本机（主机）':'当前设备')+'</div>';
-      h+='<div class="dev-grid"><div class="dev-card master"><div class="dev-icon">'+(ICONS[info.deviceIcon||'ac']||'📡')+'</div>';
-      h+='<div class="dev-name">'+esc(info.deviceName||'本机')+'</div>';
-      h+='<div class="dev-sub">'+esc(info.apMac||info.mac||'')+'</div>';
-      var role=info.mode==='ap'?'主机':info.mode==='slave'?'从机':'家庭网络';
-      h+='<div class="dev-status dev-online">'+role+'</div></div></div>';
-      $('dev-pair-btn').hidden=info.mode!=='ap';
-      $('dev-pair-help').textContent=info.mode==='ap'?'开启配对后，60 秒内给另一台设备上电或重启。':'配对仅适用于独立主机模式。';
-      Object.keys(floors).forEach(function(fl){
-        h+='<div class="floor-h">'+esc(fl)+'</div><div class="dev-grid">';
-        floors[fl].forEach(function(s){
-          var ic=ICONS[s.icon]||'📦';
-          var on=(s.ago||0)<30000;
-          h+='<div class="dev-card" onclick="editDevice(\''+jsq(s.id)+'\')">';
-          h+='<div class="dev-icon">'+ic+'</div>';
-          h+='<div class="dev-name">'+esc(s.name||s.id)+'</div>';
-          h+='<div class="dev-sub">'+esc(s.ip)+'</div>';
-          h+='<div class="dev-status '+(on?'dev-online':'dev-offline')+'">'+(on?'在线':'离线')+'</div>';
-          h+='</div>';
-        });
-        h+='</div>';
-      });
-      el.innerHTML=h;
-      var pb=$('dev-pair-btn');
-      if(pb){if(d.pairing){pb.textContent='配对中 ('+d.pairingLeft+'s)...';pb.classList.add('pair-pulse')}else{pb.textContent='配对新设备';pb.classList.remove('pair-pulse')}}
-    });
-  }).catch(function(){}).finally(function(){if(generation===devGeneration){devInFlight=false;if(devPageActive(generation))devPollTimer=setTimeout(loadDevices,3000)}});
+  var failures=[];
+  $('dev-load-status').textContent=deviceInfo?'正在刷新设备…':'正在读取设备信息…';
+  function read(url,apply,label){
+    return getJson(url).then(function(data){if(devPageActive(generation)){apply(data);renderDevices()}})
+    .catch(function(){failures.push(label)});
+  }
+  return Promise.all([
+    read('/api/system/info',function(info){if(!info||!info.mode)throw Error('bad_info');deviceInfo=info},'本机信息'),
+    read('/api/slaves',function(d){if(!d||!Array.isArray(d.slaves))throw Error('bad_slaves');deviceSlaves=d.slaves;devicePairing=d.pairing;devicePairingLeft=d.pairingLeft||0},'从机列表')
+  ]).finally(function(){
+    if(generation!==devGeneration)return;
+    devInFlight=false;
+    if(devPageActive(generation)){
+      $('dev-load-status').textContent=failures.length?failures.join('、')+'读取失败，稍后自动重试。':deviceSlaves.length?'设备已更新':deviceInfo&&deviceInfo.mode==='ap'?'本机已连接，暂无已配对从机。':'本机已连接。';
+      devPollTimer=setTimeout(loadDevices,3000);
+    }
+  });
 }
 function loadAcTargets(){
-  fetch('/api/slaves').then(function(r){return r.json()}).then(function(d){
+  getJson('/api/slaves').then(function(d){
     var wrap=$('ac-target-chips');if(!wrap)return;
     var saved=localStorage.getItem('ir_target')||'ALL';
     var h='<button class="chip '+(saved==='ALL'?'active':'')+'" data-id="ALL" onclick="toggleChip(this)">所有设备</button>';
@@ -1072,7 +1128,7 @@ var st=localStorage.getItem('ir_target');
 var editDevId='';
 function editDevice(id){
   editDevId=id;
-  fetch('/api/slaves').then(function(r){return r.json()}).then(function(d){
+  getJson('/api/slaves').then(function(d){
     var dev=d.slaves.find(function(s){return s.id===id});if(!dev)return;
     var icons=Object.keys(ICONS);
     var icHtml=icons.map(function(k){return '<button data-ic="'+k+'" onclick="pickIcon(\''+k+'\')" class="'+(dev.icon===k?'active':'')+'">'+ICONS[k]+'</button>'}).join('');

@@ -11,12 +11,13 @@ function setup(){
   const c={$, document:{hidden:false,createElement:element,querySelectorAll(){return []},addEventListener(){}},window:{addEventListener(){}},
     setTimeout(fn,delay){timers.set(++id,{fn,delay});return id;},clearTimeout(id){timers.delete(id);},
     fetch(url,options){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});requests.push({url,options,resolve,reject});return promise;},
-    AbortController: class{constructor(){this.signal={};}abort(){this.aborted=true;}},
+    AbortController: class{constructor(){this.signal={aborted:false};}abort(){this.aborted=true;this.signal.aborted=true;}},
     btoa:s=>Buffer.from(s,'binary').toString('base64'),unescape,encodeURIComponent,
-    otaBusy:false,pollTimer:null,toast(){},renderRemote(){},loadAcTargets(){},onIR(){c.captures++;},captures:0,
+    deviceInfo:null,otaBusy:false,pollTimer:null,toast(){},renderRemote(){},loadAcTargets(){},onIR(){c.captures++;},captures:0,
     esc:String,jsq:String,
   };
   vm.createContext(c);
+  vm.runInContext(part("var readQueue=", "var sigs="),c);
   vm.runInContext(part("var currentPage='ac'",'function segInit'),c);
   vm.runInContext(part('var captureGeneration=0;','function onIR'),c);
   vm.runInContext(part('var devPollTimer=null','function loadAcTargets'),c);
@@ -44,11 +45,30 @@ function response(request,data,status=200){request.resolve({ok:status===200,stat
   t.c.stopPoll();t.c.startPoll();t.run(500);assert.equal(t.requests.length,2);
   response(old,{raw:'stale'});await flush();assert.equal(t.c.captures,0);assert.equal(t.timers.size,0,'old request cannot create a second chain');
   response(t.requests[1],{raw:'fresh'});await flush();assert.equal(t.c.captures,1);assert.equal(t.timers.size,1);
-  t=setup();t.c.currentPage='devices';t.c.startDevPoll();assert.equal(t.requests.length,1);
-  t.c.stopDevPoll();t.c.currentPage='ac';response(t.requests[0],{slaves:[]});await flush();assert.equal(t.requests.length,1,'late slaves response must not query system info');
-  t.c.currentPage='devices';t.c.startDevPoll();t.c.loadDevices();assert.equal(t.requests.length,2,'in-flight guard prevents overlap');
-  response(t.requests[1],{slaves:[]});await flush();assert.equal(t.requests.length,3);
-  t.c.otaBusy=true;t.c.stopDevPoll();response(t.requests[2],{mode:'ap'});await flush();assert.equal(t.timers.size,0,'OTA prevents late device response from scheduling');
+  t=setup();t.c.currentPage='devices';t.c.startDevPoll();assert.equal(t.requests.length,2);
+  assert.match(t.$('dev-floor-list').innerHTML,/本机/,'show local card before any response');
+  t.c.loadDevices();assert.equal(t.requests.length,2,'in-flight guard prevents overlap');
+  response(t.requests[0],{mode:'ap',deviceName:'客厅主机'});await flush();
+  assert.match(t.$('dev-floor-list').innerHTML,/客厅主机/,'slow slaves cannot block local info');
+  response(t.requests[1],{},503);await flush();
+  assert.match(t.$('dev-load-status').textContent,/从机列表读取失败/);assert.equal(t.timers.size,1);
+  t.run(3000);assert.equal(t.requests.length,4);
+  response(t.requests[3],{slaves:[{id:'test',name:'卧室',floor:'__proto__'}]});await flush();
+  assert.match(t.$('dev-floor-list').innerHTML,/卧室/,'slaves can render before system info');
+  t.c.stopDevPoll();t.c.currentPage='ac';
+  response(t.requests[2],{mode:'ap',deviceName:'过时主机'});await flush();
+  assert.doesNotMatch(t.$('dev-floor-list').innerHTML,/过时主机/);assert.equal(t.timers.size,0);
+  t.c.currentPage='devices';t.c.startDevPoll();assert.equal(t.requests.length,6);
+  t.c.otaBusy=true;t.c.stopDevPoll();
+  response(t.requests[4],{mode:'ap'});response(t.requests[5],{slaves:[]});await flush();
+  assert.equal(t.timers.size,0,'OTA prevents late device response from scheduling');
+  // Reads are bounded, shared for identical URLs, and release slots after errors/timeouts.
+  t=setup();const a=t.c.getJson('/a'),same=t.c.getJson('/a'),b=t.c.getJson('/b'),next=t.c.getJson('/c');
+  assert.equal(a,same);assert.equal(t.requests.length,2);
+  a.catch(()=>{});b.catch(()=>{});next.catch(()=>{});
+  response(t.requests[0],{},500);await flush();assert.equal(t.requests.length,3);
+  t.run(5000);assert(t.requests[1].options.signal.aborted);t.requests[1].reject(new Error('aborted'));
+  response(t.requests[2],{ok:true});await flush();assert.equal(t.c.readActive,0);assert.equal(t.timers.size,0);
   // An expired session terminates rather than repeatedly retrying authentication.
   t=setup();t.c.currentPage='settings';t.c.currentSettings='maintenance';t.$('logs-password').value='secret';t.c.startLogs();response(t.requests[0],{ok:true,session:1,cursor:0});await flush();response(t.requests[1],{},409);await flush();assert.match(t.$('logs-status').textContent,/会话失效/);assert.equal(t.c.logsAuth,'');
   // Three real request timeouts produce bounded backoff, then release credentials.
@@ -62,5 +82,5 @@ function response(request,data,status=200){request.resolve({ok:status===200,stat
   t=setup();t.c.currentPage='settings';t.c.currentSettings='maintenance';t.$('logs-password').value='secret';t.c.startLogs();
   t.c.stopLogs('断开');const total=t.requests.length;response(t.requests[0],{ok:true,session:7,cursor:0});await flush();
   assert.equal(t.requests.length,total);assert.equal(t.c.logsSession,0);
-  console.log('PASS Web lifecycle: log auth/300-line/text-only/pause/stale responses; capture and device generation/in-flight guards; OTA suspension; timeout/backoff/late start');
+  console.log('PASS Web lifecycle: log auth/300-line/text-only/pause/stale responses; capture and device generation/in-flight guards; independent device rendering/failure/recovery; bounded/deduplicated reads and abort; OTA suspension; timeout/backoff/late start');
 })().catch(e=>{console.error(e);process.exitCode=1;});

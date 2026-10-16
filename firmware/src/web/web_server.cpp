@@ -7,11 +7,15 @@
 #include "rboot.h"
 #include <webui.h>
 #include "core/string_utils.h"
+#include "core/rboot_cache.h"
 extern "C" {
 #include <user_interface.h>
 }
 
 WebServer web;
+
+// Compile alongside INDEX_HTML so UI-only rebuilds also update this timestamp.
+const char* WebServer::buildTime() const { return __DATE__ " " __TIME__; }
 
 namespace {
 const char* CAPTIVE_PATHS[] = {
@@ -233,16 +237,16 @@ void WebServer::registerApiRoutes() {
         });
 
     server_.on("/api/ota/status", HTTP_GET, []() {
-        char buf[256];
+        char buf[320];
         uint8_t cur = rboot_get_current_rom();
         uint8_t target = rboot_get_target_rom();
         rboot_config conf = rboot_get_config();
         snprintf(buf, sizeof(buf),
                  "{\"ok\":true,\"current_rom\":%u,\"target_rom\":%u,"
-                 "\"rom0_addr\":\"0x%X\",\"rom1_addr\":\"0x%X\","
+                 "\"mapped_bank\":%u,\"rom0_addr\":\"0x%X\",\"rom1_addr\":\"0x%X\","
                  "\"target_addr\":\"0x%X\",\"ota_pending\":%s,"
                  "\"slot_max\":%u,\"sketch_size\":%u,\"free_space\":%u}",
-                 cur, target, conf.roms[0], conf.roms[1],
+                 cur, target, rbootMappedBank(), conf.roms[0], conf.roms[1],
                  rboot_get_rom_address(target),
                  ota.isPending() ? "true" : "false",
                  0xFE000u,

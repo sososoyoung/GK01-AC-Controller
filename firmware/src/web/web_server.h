@@ -13,6 +13,7 @@ public:
     void stop();
 
     ESP8266WebServer& raw() { return server_; }
+    const char* buildTime() const;
 
     void registerApiRoutes();
     void startCaptivePortal();

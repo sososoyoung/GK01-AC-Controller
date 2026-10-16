@@ -29,6 +29,7 @@ jobs:
         run: |
           python3 scripts/test_storage_ota.py
           python3 scripts/test_live_logs.py
+          python3 scripts/test_rboot_cache.py
           node scripts/test_ota_auth.js
           node scripts/test_web_lifecycle.js
 
@@ -56,6 +57,9 @@ jobs:
       - name: Build factory firmware (OTA disabled)
         run: pio run -e factory
         working-directory: firmware
+
+      - name: Verify ROM0 and ROM1 cache mapping is linked
+        run: python3 scripts/test_rboot_cache.py --elf firmware/.pio/build/rom0/firmware.elf --elf firmware/.pio/build/rom1/firmware.elf
 
       - name: Build flash images (strip eboot from firmware)
         run: python prepare_flash.py both

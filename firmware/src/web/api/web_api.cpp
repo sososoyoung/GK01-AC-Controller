@@ -333,6 +333,7 @@ static void handleDeviceConfig() {
 static void handleSystemInfo() {
     String json = "{";
     json.reserve(256);
+    json += "\"buildTime\":\"" + String(web.buildTime()) + "\",";
     json += "\"mac\":\"" + str::jsonEscape(WiFi.macAddress()) + "\",";
     json += "\"apMac\":\"" + str::jsonEscape(WiFi.softAPmacAddress()) + "\",";
     json += "\"chipId\":\"" + str::jsonEscape(String(ESP.getChipId(), HEX)) + "\",";

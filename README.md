@@ -71,26 +71,42 @@
 
 ### 1. 编译固件
 
-需要 [PlatformIO](https://platformio.org/)：
+需要 [PlatformIO](https://platformio.org/)。从项目根目录执行以下命令，完成日常编译和打包：
 
 ```bash
 cd firmware
 pio run -e rom0 -e rom1
+python3 prepare_flash.py both
 ```
 
-日常编译**只需 rom0 + rom1**（rboot 双分区，支持 WebUI OTA）。`factory` / `diag` / `diag_factory` 环境仅用于硬件诊断和救砖，日常使用不需要编译。
+`prepare_flash.py both` 会同时生成 OTA 和完整刷写镜像，无需再运行 `make_combined.py`。产物位于项目的 `firmware/flash_images/`：
 
-PlatformIO 原始产物在 `.pio/build/rom0/firmware.bin`，不要直接拿它做 rboot 首刷或 Web OTA。发布/刷写前先生成 rboot 镜像：
+| 文件 | 用途 |
+|------|------|
+| `ota.bin` | 网页 OTA 更新，自动写入备用 ROM |
+| `combined.bin` | USB-TTL 首刷或恢复，写入 `0x0`，包含 rBoot、启动配置和 ROM0 |
+| `rom0.bin` / `rom1.bin` | 分区镜像兼容文件，用于高级分步刷写 |
+
+日常编译**只需 rom0 + rom1**（rboot 双分区，支持 WebUI OTA）。`factory` / `diag` / `diag_factory` 环境仅用于硬件诊断和救砖，日常使用不需要编译。PlatformIO 原始产物 `.pio/build/rom0/firmware.bin` 不可直接用作 rboot 首刷或 Web OTA。
+
+若 macOS 提示找不到 `pio`，可在 `firmware` 目录中使用默认安装路径：
 
 ```bash
-pio run -e rom0 -e rom1
-python prepare_flash.py both
-python ..\scripts\make_combined.py
+~/.platformio/penv/bin/platformio run -e rom0 -e rom1
+python3 prepare_flash.py both
 ```
+
+本地打包的 manifest 版本默认是 `dev`，可通过 `IRAC_VERSION` 指定，例如 `IRAC_VERSION=cachefix-20261016 python3 prepare_flash.py both`。此标识用于 OTA 文件校验信息，不会修改“关于”中的固定应用版本号。
 
 也可以从 [GitHub Releases](https://github.com/Timeink88/GK01-AC-Controller/releases) 下载预编译固件。首次刷写优先下载 `combined-vX.X.bin`。
 
 > `factory` 环境只用于硬件诊断、救援和验证主程序能否直接从 `0x0` 启动。`factory` 固件不经过 rboot，也不支持 Web OTA。正式发布和日常使用应刷 `combined.bin`，这样才有 ROM0/ROM1 双分区和 Web OTA。
+
+### OTA 切换 ROM 后界面仍是旧版
+
+ROM1 位于 Flash 的第二个 1MB bank。rBoot 选中 ROM1 不代表 SDK 的指令缓存自动映射到 bank 1；应用必须接管缓存启用路径。`rom0` / `rom1` 构建通过链接参数 `--wrap=Cache_Read_Enable` 接入 `src/rboot-cache.cpp`，首次启用缓存时从启动配置锁定 bank，并在整个运行期间保持不变，避免 OTA 修改下次启动分区时切走当前映射。Factory 构建不接管映射。
+
+若旧固件已经出现“显示 ROM1，但界面仍旧”的现象，先通过 USB-TTL 把修复后的 `combined.bin` 写入 `0x0`，恢复 ROM0 启动配置与代码映射一致，再使用 OTA。此时继续 OTA 可能把当前实际执行的 ROM0 当作备用区覆盖。修复后的 `/api/ota/status` 增加 `mapped_bank`，正常启动后应与 `current_rom` 一致；“构建时间”与内嵌页面在同一个编译单元生成，页面更新也会更新该时间。
 
 ### 2. 刷写固件
 
@@ -275,11 +291,15 @@ GPIO13/D7 与黄色 LED 复用，可作为本机按键/触点使用：
 
 | 页面 | 功能 |
 |------|------|
-| 空调 | 品牌/温度/模式/风速控制，多选目标设备 |
-| 遥控 | 「已保存」发送、重命名、删除按钮；「学习信号」捕获并保存 |
+| 遥控 | 首页切换空调／电视；空调品牌与遥控器型号左右并排，保留温度/模式/风速和多选目标；电视使用方向确认、返回/主页/菜单和音量布局 |
+| 学习 | 「已保存」发送、重命名、删除和导入按钮；「学习信号」捕获并保存，无录制光圈动效 |
 | 设备 | 本机角色、楼层分组、从机编辑和唯一配对入口（仅主机显示） |
 | 设置 → 网络连接 | 工作模式、家庭 WiFi、热点、MQTT |
 | 设置 → 维护诊断 | 固件更新、实时日志、浏览器遥控数据、本机按键、关于和恢复出厂 |
+
+遥控器型号用于区分同一品牌的不同红外协议型号；不确定时选择“默认”。切换品牌会重置为默认型号，开机/关机和模式等控制指令会携带当前型号。
+
+设备页先显示本机卡片，本机信息和从机列表独立更新；读取失败时保留已显示内容，提示并自动重试。配置读取最多并发两个请求，同一接口的并行读取合并，单次读取 5 秒超时；网络设置按需加载。空调型号读取错误仅在空调面板显示，返回首页时重试。
 
 遥控数据导入、导出和清除只影响当前浏览器保存的遥控按钮与品牌；设备恢复出厂独立处理。页面不可见、离开功能和 OTA 上传期间停止相关轮询。
 
@@ -346,16 +366,18 @@ GPIO13/D7 与黄色 LED 复用，可作为本机按键/触点使用：
 ```bash
 python3 scripts/test_storage_ota.py
 python3 scripts/test_live_logs.py
+python3 scripts/test_rboot_cache.py
 node scripts/test_ota_auth.js
 node scripts/test_web_lifecycle.js
 cd firmware
 pio run -e rom0 -e rom1 -e factory
 python3 prepare_flash.py both
 cd ..
+python3 scripts/test_rboot_cache.py --elf firmware/.pio/build/rom0/firmware.elf --elf firmware/.pio/build/rom1/firmware.elf
 python3 scripts/verify_ota_images.py firmware/flash_images/ota.bin firmware/flash_images/rom0.bin firmware/flash_images/rom1.bin firmware/flash_images/combined.bin
 ```
 
-Host 测试编译真实存储/OTA 方法、日志队列、Print 适配器及日志 HTTP handler；Node 测试执行真实内嵌网页函数，覆盖重复上传、异步文件校验与页面迟到响应。模拟 API 的浏览器验收不等同真机验证；实际设备仍需覆盖 AP/Home、长时间查看、断网、低 heap、高频日志和实际 OTA。
+Host 测试编译真实存储/OTA 方法、日志队列、Print 适配器、日志 HTTP handler 和 Flash 映射函数；映射测试覆盖 ROM0/ROM1、OTA 修改下次启动分区时保持当前映射、非法配置，并检查最终 ELF 中的 IRAM/DRAM 位置及 SDK 调用是否重定向。Node 测试执行真实内嵌网页函数，覆盖重复上传、异步文件校验与页面迟到响应。模拟 API 的浏览器验收不等同真机验证；实际设备仍需覆盖 AP/Home、长时间查看、断网、低 heap、高频日志和实际 OTA。
 
 ## 项目结构
 
@@ -403,7 +425,8 @@ v3.0 起按领域模块化拆分，当前主要结构如下：
 │   │   │   ├── sta_slave_mode.{h,cpp}
 │   │   │   └── sta_home_mode.{h,cpp}
 │   │   ├── diag.cpp                   # 独立硬件诊断固件（factory 环境）
-│   │   └── rboot-api.cpp              # rboot SDK 桥接
+│   │   ├── rboot-api.cpp              # rboot SDK 桥接
+│   │   └── rboot-cache.cpp            # ROM0/ROM1 指令缓存映射，启动时锁定 bank
 │   ├── include/webui.h                # 内嵌 WebUI（4 Tab、网络/维护分组）
 │   ├── legacy/main_v1.cpp             # v2.x 单文件参考（不参与编译）
 │   ├── prepare_flash.py               # 生成 EA04 + IRACOTA1 OTA 包和首刷 combined 镜像
