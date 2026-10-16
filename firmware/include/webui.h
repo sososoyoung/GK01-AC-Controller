@@ -470,7 +470,7 @@ button:disabled,input:disabled{opacity:.5;cursor:default}
 
 </div>
 <div class="cd"><div class="cd-h">本机按键</div><div class="cd-b">
-<div style="font-size:13px;color:var(--text3);line-height:1.45">短按：格力制冷 26°C 一键开/关。长按 5 秒：恢复出厂设置。</div>
+<div style="font-size:13px;color:var(--text3);line-height:1.45">设备运行后短接 GPIO0-GND：短按为格力制冷 26°C 一键开/关；长按至少 5 秒后松开，恢复出厂设置。上电前短接会进入刷写模式。</div>
 </div></div>
 <div class="cd"><div class="cd-h">关于</div>
 <div class="it"><span>版本</span><span style="color:var(--gray)">v3.0.0</span></div>

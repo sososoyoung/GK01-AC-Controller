@@ -17,7 +17,9 @@ private:
     LongPressCallback  onLong_  = nullptr;
 
     bool     btnPressed_      = false;
-    bool     btnLongHandled_  = false;
+    bool     resetArmed_      = false;
+    bool     feedbackActive_  = false;
+    bool     yellowWasOn_     = false;
     uint32_t btnPressStart_   = 0;
     uint32_t lastCheckMs_     = 0;
 };
